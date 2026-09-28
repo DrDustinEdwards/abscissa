@@ -193,4 +193,50 @@ describe("barChart", () => {
       }),
     ).toThrow(/not an allowed color/);
   });
+
+  it("filters by category when asked, even with series", () => {
+    const fig = parse(
+      barChart({ data: entries, x: "year", series: "type", filterBy: "x", alt: "a" }),
+    );
+    const mark = keyedMarks(fig)[0];
+    expect(mark?.getAttribute("data-abscissa-field")).toBe("year");
+    expect(mark?.getAttribute("data-abscissa-value")).toBe("2022");
+  });
+
+  it("makes each bar a link for readers without script", () => {
+    const fig = parse(
+      barChart({
+        data: entries,
+        x: "year",
+        series: "type",
+        href: (y) => `/cv?year=${y}`,
+        alt: "a",
+      }),
+    );
+    const marks = keyedMarks(fig);
+    expect(marks[0]?.tagName.toLowerCase()).toBe("a");
+    expect(marks[0]?.getAttribute("href")).toBe("/cv?year=2022");
+    expect(marks[0]?.querySelector("rect title")?.textContent).toBe("year 2022, Publications: 1");
+  });
+
+  it("refuses links that are not relative or http(s)", () => {
+    for (const bad of ["javascript:alert(1)", " java\tscript:x", "data:text/html,x"]) {
+      expect(() => barChart({ data: entries, x: "year", href: () => bad, alt: "a" })).toThrow(
+        /not a relative or http\(s\) link/,
+      );
+    }
+    expect(() =>
+      barChart({ data: entries, x: "year", href: (y) => `https://example.org/${y}`, alt: "a" }),
+    ).not.toThrow();
+  });
+
+  it("thins category labels to at most maxXTicks, keeping the first", () => {
+    const years = Array.from({ length: 20 }, (_, i) => ({ year: 2000 + i }));
+    const fig = parse(barChart({ data: years, x: "year", maxXTicks: 5, alt: "a" }));
+    const labels = [...fig.querySelectorAll('[data-abscissa-mark="x-axis tick label"] text')].map(
+      (t) => t.textContent,
+    );
+    expect(labels).toEqual(["2000", "2004", "2008", "2012", "2016"]);
+    expect(() => barChart({ data: years, x: "year", maxXTicks: 0, alt: "a" })).toThrow(/maxXTicks/);
+  });
 });

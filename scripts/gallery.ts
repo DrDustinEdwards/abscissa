@@ -28,6 +28,7 @@ const escapeText = (s: string): string =>
 /** Gallery order. Every example must be listed, so a new one cannot be left out by accident. */
 const ORDER = [
   "stacked-bar",
+  "years",
   "grouped-bar",
   "horizontal-bar",
   "line",

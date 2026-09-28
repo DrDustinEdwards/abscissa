@@ -46,6 +46,22 @@ export interface BarChartOptions<T extends object> extends FigureOptions {
   readonly yLabel?: string | null;
   /** Formats values in hover details and the data table. */
   readonly formatValue?: (value: number) => string;
+  /**
+   * What a click on a bar filters by, once enhanced: its series (default when there are series)
+   * or its category (`"x"`, e.g. "this year"). A chart without series always filters by category.
+   */
+  readonly filterBy?: "series" | "x";
+  /**
+   * A link for each category, so that with scripts off a bar is a link (to a filtered page, say).
+   * Once enhanced, bars filter instead and the link moves to `data-abscissa-href`. Only relative,
+   * `http:` and `https:` links are allowed.
+   */
+  readonly href?: (x: string) => string;
+  /**
+   * The most category labels to print. With more categories than this, every nth label is
+   * printed, starting from the first, so labels stay legible when the chart is drawn small.
+   */
+  readonly maxXTicks?: number;
 }
 
 interface BarPoint {
@@ -55,6 +71,29 @@ interface BarPoint {
 }
 
 const KIND = "barChart";
+
+/**
+ * Allows relative and http(s) links only, so data can never produce a `javascript:` URL. Browsers
+ * ignore control characters and spaces inside a scheme, so the scheme is read without them.
+ */
+function safeHref(href: string): string {
+  const compact = [...href].filter((ch) => ch.charCodeAt(0) > 0x20).join("");
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(compact)?.[1]?.toLowerCase();
+  if (scheme !== undefined && scheme !== "http" && scheme !== "https") {
+    throw new Error(`${KIND}: href "${href}" is not a relative or http(s) link`);
+  }
+  return href;
+}
+
+/** Every nth category, when there are more than `max`, or undefined to print them all. */
+function thinTicks(names: readonly string[], max: number | undefined): string[] | undefined {
+  if (max === undefined) return undefined;
+  if (!Number.isInteger(max) || max < 1)
+    throw new Error(`${KIND}: maxXTicks must be a whole number of 1 or more`);
+  if (names.length <= max) return undefined;
+  const step = Math.ceil(names.length / max);
+  return names.filter((_, i) => i % step === 0);
+}
 
 const STEPS = [1, 2, 5];
 
@@ -132,14 +171,28 @@ export function barChart<T extends object>(options: BarChartOptions<T>): string 
       ? `${categoryLabel ?? x} ${p.x}: ${format(p.value)}`
       : `${categoryLabel ?? x} ${p.x}, ${p.series}: ${format(p.value)}`;
 
-  const render = keyed(points, (p) => ({
-    key: `${p.x}|${p.series}`,
-    filter: series === undefined ? { field: x, value: p.x } : { field: series, value: p.series },
-    x: p.x,
-    ...(series === undefined ? {} : { series: p.series }),
-  }));
+  const render = keyed(
+    points,
+    (p) => ({
+      key: `${p.x}|${p.series}`,
+      filter:
+        series === undefined || options.filterBy === "x"
+          ? { field: x, value: p.x }
+          : { field: series, value: p.series },
+      x: p.x,
+      ...(series === undefined ? {} : { series: p.series }),
+    }),
+    // A link is read on its own, so it carries its own name.
+    options.href ? (el, p) => el.setAttribute("aria-label", describe(p)) : undefined,
+  );
 
-  const common = { fill: "series", title: describe, render };
+  const linkOf = options.href;
+  const common = {
+    fill: "series",
+    title: describe,
+    render,
+    ...(linkOf ? { href: (p: BarPoint) => safeHref(linkOf(p.x)) } : {}),
+  };
   const order = { order: seriesNames };
   let bar: Plot.Markish;
   if (horizontal) {
@@ -155,17 +208,19 @@ export function barChart<T extends object>(options: BarChartOptions<T>): string 
   const longest = Math.max(...xNames.map((n) => n.length), 1);
   const width = options.width ?? 640;
   const height = options.height ?? (horizontal ? Math.max(120, xNames.length * 28 + 60) : 320);
+  const thinned = thinTicks(xNames, options.maxXTicks);
   const categoryScale = {
     domain: grouped ? seriesNames : xNames,
     label: grouped ? null : categoryLabel,
     padding: grouped ? 0.05 : 0.2,
-    ...(grouped ? { axis: null } : {}),
+    ...(grouped ? { axis: null } : thinned ? { ticks: thinned } : {}),
   };
   const facetScale = {
     domain: xNames,
     label: categoryLabel,
     padding: 0.15,
     axis: horizontal ? "left" : "bottom",
+    ...(thinned ? { ticks: thinned } : {}),
   } as const;
   const valueScale = {
     label: valueLabel,
@@ -200,6 +255,7 @@ export function barChart<T extends object>(options: BarChartOptions<T>): string 
       marks: [bar, horizontal ? Plot.ruleX([0]) : Plot.ruleY([0])],
     },
     options.alt,
+    options.href ? "group" : "img",
   );
 
   const seriesColumns = seriesNames;

@@ -146,10 +146,15 @@ export interface RenderedPlot {
 }
 
 /**
- * Draws a Plot specification into SVG markup named by `alt`. Throws if Plot warns, because a
- * warning means the chart shown would not be the chart intended.
+ * Draws a Plot specification into SVG markup named by `alt`: one image, or a group when its
+ * marks are links. Throws if Plot warns, because a warning means the chart shown would not be the
+ * chart intended.
  */
-export function renderPlot(options: Plot.PlotOptions, alt: string): RenderedPlot {
+export function renderPlot(
+  options: Plot.PlotOptions,
+  alt: string,
+  role: "img" | "group" = "img",
+): RenderedPlot {
   const document = createDocument();
   const svg = Plot.plot({ ...options, document }) as unknown as SVGSVGElement & Plot.Plot;
 
@@ -172,7 +177,9 @@ export function renderPlot(options: Plot.PlotOptions, alt: string): RenderedPlot
     group.removeAttribute("aria-label");
   }
   roundCoordinates(svg);
-  svg.setAttribute("role", "img");
+  // A chart whose marks are links cannot be one image: role="img" would hide the links.
+  svg.setAttribute("role", role);
+  if (role === "group") svg.setAttribute("aria-roledescription", "chart");
   svg.setAttribute("aria-label", alt);
 
   let x: ScaleDescription | undefined;

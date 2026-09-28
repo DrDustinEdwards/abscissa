@@ -60,7 +60,17 @@ one row per item (a CV entry, a case) is enough.
 `data`, `x` (category field), `y` (value field, optional), `series`,
 `layout` (`"stacked"` or `"grouped"`), `orientation` (`"vertical"` or
 `"horizontal"`), `xDomain` (every category in order, including empty ones),
-`seriesDomain`, `colors`, `xLabel`, `yLabel`, `formatValue`.
+`seriesDomain`, `colors`, `xLabel`, `yLabel`, `formatValue`, and:
+
+- `filterBy`: what a click filters by once enhanced, `"series"` (the default
+  when there are series) or `"x"` (the bar's category, such as its year).
+- `href`: a function from category to link. Without script each bar is a link
+  (and the SVG a named group rather than one image, so the links stay
+  reachable); with the enhancement layer the bar filters instead, and the link
+  is kept in `data-abscissa-href`. Only relative and `http(s)` links are
+  allowed.
+- `maxXTicks`: the most category labels to print; with more categories, every
+  nth label is printed from the first.
 
 ### `lineChart`
 
@@ -343,9 +353,18 @@ call again: a figure is enhanced once.
 
 ### `EnhancedChart`
 
-`{ figure; update(markup); clear(); destroy() }`. `update` swaps in new server
-markup for the same chart and animates marks that share a key; `destroy`
-restores the server markup.
+`{ figure; update(markup); setFilter(filter); clear(); destroy() }`.
+
+- `update` swaps in new server markup for the same chart, animating marks
+  that share a key, and keeps the current filter.
+- `setFilter({ field, value })` shows a filter the page chose (from its own
+  controls or the URL); `setFilter(null)` removes it.
+- `clear()` removes the filter and range.
+- `destroy()` restores the server markup.
+
+Calls the page makes (`update`, `setFilter`, `clear`) fire no events, since
+the page already knows; only a reader's clicks and keys fire
+`abscissa:select` and `abscissa:brush`.
 
 ### `SelectDetail`
 

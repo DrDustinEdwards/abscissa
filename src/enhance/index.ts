@@ -61,7 +61,15 @@ export interface EnhancedChart {
    * share a key from their old shape to their new one.
    */
   update(markup: string): void;
-  /** Clears any filter and range, firing the corresponding events. */
+  /**
+   * Shows a filter the page chose (from its own controls, or a URL) without firing
+   * `abscissa:select`: the page already knows. `null` clears it.
+   */
+  setFilter(filter: { readonly field: string; readonly value: string } | null): void;
+  /**
+   * Clears any filter and range the page wants gone, without firing events. A reader pressing
+   * Escape clears them too, and that does fire events.
+   */
   clear(): void;
   /** Removes every listener and element the layer added, leaving the server markup. */
   destroy(): void;
@@ -82,6 +90,13 @@ const reducedMotion = (): boolean =>
 
 function label(mark: Element): string {
   return mark.getAttribute("aria-label") ?? mark.querySelector("title")?.textContent ?? "";
+}
+
+/** The element holding a mark's geometry: the mark, or the shape inside a linked mark. */
+function shape(mark: Element): Element {
+  return mark.hasAttribute("x") || mark.hasAttribute("cx") || !mark.firstElementChild
+    ? mark
+    : mark.firstElementChild;
 }
 
 function center(mark: SVGGraphicsElement): { x: number; y: number } {
@@ -129,6 +144,8 @@ class Chart implements EnhancedChart {
   private anchorIndex: number | null = null;
   private selected: { field: string; value: string } | null = null;
   private brushRect: SVGRectElement | null = null;
+  /** The SVG's role as the server rendered it, restored by destroy(). */
+  private serverRole: string | null = null;
 
   constructor(figure: HTMLElement, options: Required<EnhanceOptions>) {
     this.figure = figure;
@@ -163,11 +180,19 @@ class Chart implements EnhancedChart {
 
     this.marks = readingOrder([...svg.querySelectorAll<SVGGraphicsElement>(MARK)]);
     // With interactive marks inside, the SVG is a group of named buttons, not one opaque image.
+    this.serverRole ??= svg.getAttribute("role");
     svg.setAttribute("role", "group");
     svg.setAttribute("aria-roledescription", "chart");
     this.marks.forEach((mark, i) => {
       const text = label(mark);
       mark.querySelector("title")?.remove();
+      // A bar that is a link without script becomes a filter button with it; the page can read the
+      // link from data-abscissa-href and follow it on abscissa:select if it wants to.
+      const href = mark.getAttribute("href");
+      if (href !== null) {
+        mark.setAttribute("data-abscissa-href", href);
+        mark.removeAttribute("href");
+      }
       mark.setAttribute("aria-label", text);
       const filterable = this.options.filter && mark.hasAttribute("data-abscissa-field");
       mark.setAttribute("role", filterable ? "button" : "img");
@@ -344,7 +369,7 @@ class Chart implements EnhancedChart {
         event.preventDefault();
         return;
       case "Escape":
-        this.clear();
+        this.clearAll(true);
         return;
       default:
         return;
@@ -423,10 +448,10 @@ class Chart implements EnhancedChart {
 
   private toggle(field: string, value: string, x?: string): void {
     const same = this.selected?.field === field && this.selected.value === value;
-    this.select(same ? null : { field, value }, x);
+    this.select(same ? null : { field, value }, true, x);
   }
 
-  private select(next: { field: string; value: string } | null, x?: string): void {
+  private select(next: { field: string; value: string } | null, notify: boolean, x?: string): void {
     const previous = this.selected;
     this.selected = next;
     for (const mark of this.marks) {
@@ -444,7 +469,7 @@ class Chart implements EnhancedChart {
       button.setAttribute("aria-pressed", String(next !== null && value === next.value));
     }
     const field = next?.field ?? previous?.field;
-    if (field === undefined) return;
+    if (field === undefined || !notify) return;
     this.announce(next ? `Filtered to ${next.value}` : "Filter cleared");
     this.figure.dispatchEvent(
       new CustomEvent<SelectDetail>("abscissa:select", {
@@ -463,9 +488,20 @@ class Chart implements EnhancedChart {
     if (this.live) this.live.textContent = message;
   }
 
+  setFilter(filter: { readonly field: string; readonly value: string } | null): void {
+    this.select(filter ? { field: filter.field, value: filter.value } : null, false);
+  }
+
   clear(): void {
-    if (this.selected) this.select(null);
-    if (this.brushRect && this.brushRect.style.display !== "none") this.emitBrush(null);
+    this.clearAll(false);
+  }
+
+  private clearAll(notify: boolean): void {
+    if (this.selected) this.select(null, notify);
+    if (this.brushRect && this.brushRect.style.display !== "none") {
+      if (notify) this.emitBrush(null);
+      else this.brushRect.style.display = "none";
+    }
     this.anchorIndex = null;
   }
 
@@ -480,7 +516,7 @@ class Chart implements EnhancedChart {
     for (const mark of this.figure.querySelectorAll(MARK)) {
       const attrs: Record<string, string> = {};
       for (const name of ANIMATED) {
-        const value = mark.getAttribute(name);
+        const value = shape(mark).getAttribute(name);
         if (value !== null) attrs[name] = value;
       }
       before.set(mark.getAttribute("data-abscissa-key") ?? "", attrs);
@@ -493,7 +529,8 @@ class Chart implements EnhancedChart {
     }
     this.figure.replaceChildren(...incoming.childNodes);
     this.attach();
-    if (selected) this.select(selected);
+    // Restoring the page's own selection is not news to the page, so it fires nothing.
+    if (selected) this.select(selected, false);
     if (reducedMotion()) return;
 
     const tweens: { mark: Element; name: string; from: number; to: number }[] = [];
@@ -506,12 +543,13 @@ class Chart implements EnhancedChart {
         });
         continue;
       }
+      const el = shape(mark);
       for (const name of ANIMATED) {
         const from = Number(old[name]);
-        const to = Number(mark.getAttribute(name));
+        const to = Number(el.getAttribute(name));
         if (Number.isFinite(from) && Number.isFinite(to) && from !== to) {
-          tweens.push({ mark, name, from, to });
-          mark.setAttribute(name, String(from));
+          tweens.push({ mark: el, name, from, to });
+          el.setAttribute(name, String(from));
         }
       }
     }
@@ -543,23 +581,24 @@ class Chart implements EnhancedChart {
     this.teardown();
     const svg = this.svg;
     if (svg) {
-      svg.setAttribute("role", "img");
-      svg.removeAttribute("aria-roledescription");
+      svg.setAttribute("role", this.serverRole ?? "img");
+      if (this.serverRole !== "group") svg.removeAttribute("aria-roledescription");
       for (const mark of svg.querySelectorAll(MARK)) {
         const text = mark.getAttribute("aria-label");
-        for (const name of [
-          "aria-label",
-          "role",
-          "aria-pressed",
-          "tabindex",
-          "data-abscissa-dimmed",
-        ]) {
+        const href = mark.getAttribute("data-abscissa-href");
+        if (href !== null) {
+          mark.setAttribute("href", href);
+          mark.removeAttribute("data-abscissa-href");
+        }
+        for (const name of ["role", "aria-pressed", "tabindex", "data-abscissa-dimmed"]) {
           mark.removeAttribute(name);
         }
+        // Links keep their name, as the server rendered them; other marks get their title back.
+        if (href === null) mark.removeAttribute("aria-label");
         if (text) {
           const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
           title.textContent = text;
-          mark.append(title);
+          shape(mark).append(title);
         }
       }
     }

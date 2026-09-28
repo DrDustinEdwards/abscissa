@@ -30,7 +30,8 @@ describe("server rendering", () => {
     const svgs = [...root.querySelectorAll("svg")];
     expect(svgs.length).toBeGreaterThan(0);
     for (const svg of svgs) {
-      expect(svg.getAttribute("role")).toBe("img");
+      // One image, or a named group when its marks are links.
+      expect(["img", "group"]).toContain(svg.getAttribute("role"));
       expect((svg.getAttribute("aria-label") ?? "").length).toBeGreaterThan(0);
     }
     for (const fig of root.querySelectorAll("figure")) {

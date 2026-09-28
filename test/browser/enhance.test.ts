@@ -214,3 +214,71 @@ describe("enhance: brush on a time axis", () => {
     await p.close();
   });
 });
+
+describe("enhance: selecting a year, page-set filters and links", () => {
+  const YEARS = '[data-example="years"]';
+
+  it("selects the bar's year, and fires nothing for filters the page sets itself", async () => {
+    const p = await harness.open("index.html", "light");
+    await p.$eval(`${YEARS} svg`, (svg) => svg.scrollIntoView({ block: "center" }));
+    await p.click(`${YEARS} [data-abscissa-key="2012|Grants"]`);
+    expect(await eventLog(p, YEARS)).toBe(
+      'abscissa:select {"chartId":"entries-by-year-select","field":"year","value":"2012","x":"2012"}',
+    );
+    const dimmedYears = await p.$$eval(`${YEARS} [data-abscissa-dimmed]`, (els) => [
+      ...new Set(els.map((el) => el.getAttribute("data-abscissa-x"))),
+    ]);
+    expect(dimmedYears).not.toContain("2012");
+
+    const result = await p.evaluate(async () => {
+      const load = new Function("url", "return import(url)") as (url: string) => Promise<unknown>;
+      const { enhance } = (await load(
+        "./enhance.js",
+      )) as typeof import("../../src/enhance/index.ts");
+      const section = document.querySelector('[data-example="years"]');
+      if (!section) throw new Error("no example");
+      // Take the server markup back, as a page re-rendering on the server would send it.
+      enhance(section)[0]?.destroy();
+      const server = section.querySelector("figure")?.outerHTML ?? "";
+      const [chart] = enhance(section);
+      if (!chart) throw new Error("no chart");
+      let events = 0;
+      chart.figure.addEventListener("abscissa:select", () => {
+        events += 1;
+      });
+      chart.setFilter({ field: "year", value: "2020" });
+      const pressed = chart.figure
+        .querySelector('[aria-pressed="true"]')
+        ?.getAttribute("data-abscissa-x");
+      chart.update(server);
+      const stillPressed = chart.figure
+        .querySelector('[aria-pressed="true"]')
+        ?.getAttribute("data-abscissa-x");
+      chart.clear();
+      const afterClear = chart.figure.querySelectorAll("[data-abscissa-dimmed]").length;
+      return { events, pressed, stillPressed, afterClear };
+    });
+    expect(result).toEqual({ events: 0, pressed: "2020", stillPressed: "2020", afterClear: 0 });
+    await p.close();
+  });
+
+  it("keeps bars as links without script, and turns them into filter buttons with it", async () => {
+    const off = await harness.open("index.html", "light", { scripts: false });
+    expect(
+      await off.$eval(`${YEARS} [data-abscissa-key="2012|Grants"]`, (a) => [
+        a.tagName,
+        a.getAttribute("href"),
+      ]),
+    ).toEqual(["a", "?year=2012"]);
+    await off.close();
+    const on = await harness.open("index.html", "light");
+    expect(
+      await on.$eval(`${YEARS} [data-abscissa-key="2012|Grants"]`, (a) => [
+        a.getAttribute("href"),
+        a.getAttribute("data-abscissa-href"),
+        a.getAttribute("role"),
+      ]),
+    ).toEqual([null, "?year=2012", "button"]);
+    await on.close();
+  });
+});

@@ -7,6 +7,25 @@ change the public API; every such change is listed here.
 
 ## [Unreleased]
 
+## [0.1.0-alpha.4] - 2026-09-28
+
+From the first customer's integration (the interactive CV).
+
+### Added
+
+- `barChart` `filterBy: "x"` filters by a bar's category (its year) instead of
+  its series.
+- `barChart` `href` makes each bar a link when scripts are off; enhanced, it
+  filters instead and keeps the link in `data-abscissa-href`.
+- `barChart` `maxXTicks` thins category labels for small drawings.
+- `EnhancedChart.setFilter()` shows a filter the page chose.
+
+### Changed
+
+- `update()` and `clear()` no longer fire `abscissa:select` or
+  `abscissa:brush`: calls the page makes are not echoed back to it. Escape,
+  pressed by a reader, still fires them.
+
 ## [0.1.0-alpha.3] - 2026-09-28
 
 The first complete version, for review before the repository is made public.
@@ -69,7 +88,8 @@ is built. In active development: the API will change.
   `dustinedwardsTheme`.
 - `checkTheme`: WCAG contrast and color-vision-deficiency checks for a theme.
 
-[Unreleased]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.3...HEAD
+[Unreleased]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.4...HEAD
+[0.1.0-alpha.4]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.3...v0.1.0-alpha.4
 [0.1.0-alpha.3]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.2...v0.1.0-alpha.3
 [0.1.0-alpha.2]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.1...v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.0...v0.1.0-alpha.1

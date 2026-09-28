@@ -37,7 +37,20 @@ readers."
    transitions are skipped under `prefers-reduced-motion: reduce`, both in
    script and in CSS. Entrance runs once, when a chart first scrolls into
    view.
-7. **`destroy()` restores the server markup**, so a page can hand a chart back
+7. **Events report readers, not the page.** A click or key fires
+   `abscissa:select` or `abscissa:brush`; `update()`, `setFilter()` and
+   `clear()`, which the page calls itself, fire nothing, so a page never
+   hears its own changes echoed back. (Changed after the first customer, the
+   interactive CV, had to suppress those echoes.)
+8. **What a click filters by is the chart's choice, made on the server.** A
+   stacked bar filters by its series by default and by its category with
+   `filterBy: "x"`, because a CV selects a year, not a publication type.
+9. **Links without script, filters with it.** A bar chart given `href` renders
+   each bar as a link, so a reader without script can still reach the
+   filtered view. The SVG is then a named group, not one image, because
+   `role="img"` would hide the links. The enhancement layer turns the links
+   into filter buttons and keeps the address in `data-abscissa-href`.
+10. **`destroy()` restores the server markup**, so a page can hand a chart back
    to server rendering, and tests can check the round trip.
 
 ## Consequences
