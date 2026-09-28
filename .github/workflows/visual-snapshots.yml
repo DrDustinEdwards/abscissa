@@ -20,6 +20,11 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run gallery
+      # Ubuntu 24.04 runners forbid unprivileged user namespaces through AppArmor, and Chrome's
+      # sandbox needs them. Lifting that restriction on the throwaway runner keeps the sandbox on,
+      # so the tests run Chrome as readers do; --no-sandbox would test a weaker browser instead.
+      - name: Allow Chrome's sandbox
+        run: echo 0 | sudo tee /proc/sys/kernel/apparmor_restrict_unprivileged_userns
       - run: npx vitest run --config vitest.browser.config.ts test/browser/visual.test.ts
         env:
           UPDATE_SNAPSHOTS: "1"

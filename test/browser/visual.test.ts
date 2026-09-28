@@ -28,7 +28,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await harness.close();
+  // Undefined when the browser failed to launch: let that error, not this one, be reported.
+  await harness?.close();
 });
 
 function compare(name: string, actual: Uint8Array): void {
