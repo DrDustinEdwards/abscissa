@@ -15,10 +15,15 @@ const TYPES: Record<string, string> = {
 export interface Harness {
   readonly browser: Browser;
   readonly origin: string;
+  /**
+   * Opens a gallery page in a color scheme. Reduced motion is on unless turned off, so screenshots
+   * never catch an animation; `scripts: false` blocks the enhancement layer, as a reader without
+   * JavaScript would see the page.
+   */
   open(
     path: string,
     scheme: "light" | "dark",
-    options?: { reducedMotion?: boolean },
+    options?: { reducedMotion?: boolean; scripts?: boolean },
   ): Promise<Page>;
   close(): Promise<void>;
 }
@@ -55,6 +60,13 @@ export async function startHarness(): Promise<Harness> {
           value: options.reducedMotion === false ? "no-preference" : "reduce",
         },
       ]);
+      if (options.scripts === false) {
+        await page.setRequestInterception(true);
+        page.on("request", (request) => {
+          if (request.url().endsWith(".js")) void request.abort();
+          else void request.continue();
+        });
+      }
       await page.goto(`${origin}/${path}`, { waitUntil: "load" });
       await page.evaluate((s) => {
         document.documentElement.dataset["scheme"] = s;

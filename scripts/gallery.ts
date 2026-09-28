@@ -26,7 +26,20 @@ const escapeText = (s: string): string =>
   s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
 
 /** Gallery order. Every example must be listed, so a new one cannot be left out by accident. */
-const ORDER = ["stacked-bar", "grouped-bar", "horizontal-bar", "sparkline"];
+const ORDER = [
+  "stacked-bar",
+  "grouped-bar",
+  "horizontal-bar",
+  "line",
+  "area",
+  "scatter",
+  "heatmap",
+  "network",
+  "titer",
+  "genome",
+  "sparkline",
+  "primitives",
+];
 
 async function loadExamples(): Promise<Example[]> {
   const found = readdirSync(examplesDir)
@@ -74,6 +87,7 @@ section.example h2 { margin: 0 0 16px; font-size: 1.125rem; }
 .source pre { overflow-x: auto; padding: 12px; border-radius: 6px; background: var(--page-code); }
 .events { min-height: 1.5em; margin: 8px 0 0; font-family: ui-monospace, monospace; font-size: 0.8125rem; }
 .report { font-size: 0.875rem; }
+.primitives { display: flex; flex-wrap: wrap; gap: 24px; align-items: center; }
 .report li { margin: 2px 0; }
 `;
 
@@ -115,7 +129,7 @@ ${examples
 <h2>${escapeText(e.title)}</h2>
 ${e.markup}
 <p class="events" aria-live="polite"></p>
-<details class="source"><summary>Source: examples/${e.id}.ts</summary><pre><code>${escapeText(e.source)}</code></pre></details>
+<details class="source"><summary>Source: examples/${e.id}.ts</summary><pre tabindex="0"><code>${escapeText(e.source)}</code></pre></details>
 </section>`,
   )
   .join("\n")}

@@ -26,7 +26,14 @@ function colorVariables(light: ColorScheme, dark: ColorScheme): Variables {
     ["status-unknown", light.status.unknown, dark.status.unknown],
   ];
   light.series.forEach((color, i) => {
-    pairs.push([`series-${i + 1}`, color, dark.series[i] ?? color]);
+    const darkColor = dark.series[i] ?? color;
+    pairs.push([`series-${i + 1}`, color, darkColor]);
+    // A label printed on a mark (a genome feature) takes whichever of text or background reads better.
+    pairs.push([
+      `series-text-${i + 1}`,
+      mostReadable(color, light.text, light.background),
+      mostReadable(darkColor, dark.text, dark.background),
+    ]);
   });
   light.sequential.forEach((color, i) => {
     const darkColor = dark.sequential[i] ?? color;
@@ -108,6 +115,11 @@ ${Array.from(
   (_, i) =>
     `.abscissa [data-slot="${i + 1}"] { --abscissa-slot: var(--abscissa-series-${i + 1}); }`,
 ).join("\n")}
+${Array.from(
+  { length: 5 },
+  (_, i) =>
+    `.abscissa [data-step="${i + 1}"] { --abscissa-slot: var(--abscissa-sequential-${i + 1}); }`,
+).join("\n")}
 .abscissa-swatch { background: var(--abscissa-slot); }
 .abscissa-data { margin: 0.5em 0 0; font-size: 0.875em; }
 .abscissa-data summary { cursor: pointer; color: var(--abscissa-text-muted); }
@@ -146,7 +158,7 @@ ${Array.from(
 }
 .abscissa-tooltip[hidden] { display: none; }
 .abscissa [data-abscissa-key] { transition: opacity 150ms ease-out; }
-.abscissa[data-abscissa-interactive] [data-abscissa-key] { cursor: pointer; }
+.abscissa[data-abscissa-interactive] [data-abscissa-field] { cursor: pointer; }
 .abscissa [data-abscissa-dimmed] { opacity: 0.25; }
 .abscissa [data-abscissa-key]:focus { outline: none; }
 .abscissa [data-abscissa-key]:focus-visible,

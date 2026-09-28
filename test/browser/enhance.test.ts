@@ -164,3 +164,53 @@ describe("enhance: update and destroy", () => {
     await p.close();
   });
 });
+
+describe("enhance: brush on a time axis", () => {
+  const LINE = '[data-example="line"]';
+
+  it("picks a range by dragging and reports it in data units", async () => {
+    const p = await harness.open("index.html", "light");
+    const box = await p.$eval(`${LINE} svg`, (svg) => {
+      svg.scrollIntoView({ block: "center" });
+      const r = svg.getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width, height: r.height };
+    });
+    await p.mouse.move(box.x + box.width * 0.3, box.y + box.height / 2);
+    await p.mouse.down();
+    await p.mouse.move(box.x + box.width * 0.6, box.y + box.height / 2, { steps: 5 });
+    await p.mouse.up();
+    const log = await eventLog(p, LINE);
+    expect(log.startsWith('abscissa:brush {"chartId":"weekly-cases","range":[')).toBe(true);
+    const detail = JSON.parse(log.slice("abscissa:brush ".length)) as {
+      range: [number, number];
+      time: boolean;
+    };
+    expect(detail.time).toBe(true);
+    expect(detail.range[0]).toBeLessThan(detail.range[1]);
+    expect(detail.range[0]).toBeGreaterThan(Date.UTC(2025, 9, 1));
+    expect(detail.range[1]).toBeLessThan(Date.UTC(2026, 1, 1));
+    expect(await p.$eval(`${LINE} .abscissa-brush`, (r) => (r as SVGElement).style.display)).toBe(
+      "",
+    );
+    await p.close();
+  });
+
+  it("picks a range with Shift and the arrow keys, and clears it with Escape", async () => {
+    const p = await harness.open("index.html", "light");
+    await p.$eval(`${LINE} [data-abscissa-key][tabindex="0"]`, (el) => (el as SVGElement).focus());
+    await p.keyboard.down("Shift");
+    await p.keyboard.press("ArrowRight");
+    await p.keyboard.press("ArrowRight");
+    await p.keyboard.up("Shift");
+    const detail = JSON.parse((await eventLog(p, LINE)).slice("abscissa:brush ".length)) as {
+      range: [number, number];
+    };
+    // Two steps of one week each, from the first week plotted.
+    expect(Math.round((detail.range[1] - detail.range[0]) / 86_400_000)).toBe(14);
+    await p.keyboard.press("Escape");
+    expect(await eventLog(p, LINE)).toBe(
+      'abscissa:brush {"chartId":"weekly-cases","range":null,"time":true}',
+    );
+    await p.close();
+  });
+});

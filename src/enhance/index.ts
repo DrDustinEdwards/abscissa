@@ -169,8 +169,9 @@ class Chart implements EnhancedChart {
       const text = label(mark);
       mark.querySelector("title")?.remove();
       mark.setAttribute("aria-label", text);
-      mark.setAttribute("role", this.options.filter ? "button" : "img");
-      if (this.options.filter) mark.setAttribute("aria-pressed", "false");
+      const filterable = this.options.filter && mark.hasAttribute("data-abscissa-field");
+      mark.setAttribute("role", filterable ? "button" : "img");
+      if (filterable) mark.setAttribute("aria-pressed", "false");
       mark.setAttribute("tabindex", i === 0 ? "0" : "-1");
     });
 

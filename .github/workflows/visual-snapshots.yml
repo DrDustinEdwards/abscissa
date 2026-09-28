@@ -1,0 +1,29 @@
+name: Visual snapshots
+
+# Renders the gallery on the CI platform and uploads the images, for a maintainer to review and
+# commit when a chart's appearance changes on purpose. It never commits anything itself.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run gallery
+      - run: npx vitest run --config vitest.browser.config.ts test/browser/visual.test.ts
+        env:
+          UPDATE_SNAPSHOTS: "1"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: visual-snapshots-linux
+          path: test/browser/__snapshots__/linux/

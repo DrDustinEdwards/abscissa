@@ -48,12 +48,21 @@ export interface LegendItem {
   readonly slot: number;
 }
 
+/** One step of a sequential color legend. */
+export interface RampItem {
+  readonly label: string;
+  /** The ramp step, 1 to 5. */
+  readonly step: number;
+}
+
 /** Everything a chart hands to {@link figure}. */
 export interface FigureParts {
   readonly kind: string;
   readonly svg: string;
   readonly table: DataTable;
   readonly legend?: readonly LegendItem[];
+  /** A legend for a sequential ramp (heatmaps, maps), shown instead of a series legend. */
+  readonly ramp?: readonly RampItem[];
   /** The data field series come from, which legend filters report. */
   readonly seriesField?: string;
   readonly x?: ScaleDescription;
@@ -126,29 +135,42 @@ function tableMarkup(table: DataTable, caption: string): string {
   );
 }
 
+function legendMarkup(parts: FigureParts): string {
+  const swatch = element("span", { class: "abscissa-swatch", "aria-hidden": "true" });
+  if (parts.ramp && parts.ramp.length > 0) {
+    return element(
+      "ul",
+      { class: "abscissa-legend abscissa-ramp" },
+      parts.ramp
+        .map((item) =>
+          element("li", { "data-step": item.step }, `${swatch}${escapeHtml(item.label)}`),
+        )
+        .join(""),
+    );
+  }
+  if (!parts.legend || parts.legend.length === 0) return "";
+  return element(
+    "ul",
+    { class: "abscissa-legend" },
+    parts.legend
+      .map((item) =>
+        element(
+          "li",
+          { "data-abscissa-series": item.label, "data-slot": item.slot },
+          `${swatch}${escapeHtml(item.label)}`,
+        ),
+      )
+      .join(""),
+  );
+}
+
 /** Assembles the figure markup for a chart. */
 export function figure(options: FigureOptions, parts: FigureParts): string {
   const alt = requireAlt(options.alt, parts.kind);
   const title = options.title?.trim();
   const caption = options.caption?.trim();
 
-  const legend =
-    parts.legend && parts.legend.length > 0
-      ? element(
-          "ul",
-          { class: "abscissa-legend" },
-          parts.legend
-            .map((item) =>
-              element(
-                "li",
-                { "data-abscissa-series": item.label, "data-slot": item.slot },
-                `${element("span", { class: "abscissa-swatch", "aria-hidden": "true" })}${escapeHtml(item.label)}`,
-              ),
-            )
-            .join(""),
-        )
-      : "";
-
+  const legend = legendMarkup(parts);
   const table = tableMarkup(parts.table, `Data for: ${title ?? alt}`);
   const tableBlock =
     options.dataTable === "visually-hidden"

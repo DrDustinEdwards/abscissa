@@ -182,7 +182,7 @@ export function barChart<T extends object>(options: BarChartOptions<T>): string 
     {
       width,
       height,
-      marginTop: 16,
+      marginTop: 20,
       marginLeft: horizontal ? Math.min(220, longest * 7 + 16) : valueLabel === null ? 44 : 60,
       marginBottom: 44,
       ...(horizontal

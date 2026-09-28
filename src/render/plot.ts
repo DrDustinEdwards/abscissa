@@ -28,28 +28,43 @@ export interface MarkDatum {
 }
 
 /**
- * A Plot render transform that tags each element a mark draws with its datum's key. Plot draws
- * one element per index entry, in index order, for the marks Abscissa keys (bar, dot, cell, rect).
+ * A Plot render transform that calls `apply` on each element a mark draws with the datum it
+ * draws. Plot draws one element per index entry, in index order, for bar, dot, cell, rect and text.
  */
-export function keyed<T>(
+export function decorate<T>(
   items: readonly T[],
-  describe: (item: T) => MarkDatum,
+  apply: (el: Element, item: T) => void,
 ): Plot.RenderFunction {
   return (index, scales, values, dimensions, context, next) => {
-    if (!next) throw new Error("keyed() must be used as a render transform");
+    if (!next) throw new Error("decorate() must be used as a render transform");
     const group = next(index, scales, values, dimensions, context);
     if (!group) return group;
     const children = [...group.children];
     if (children.length !== index.length) {
-      throw new Error(`a keyed mark drew ${children.length} elements for ${index.length} data`);
+      throw new Error(`a decorated mark drew ${children.length} elements for ${index.length} data`);
     }
     children.forEach((child, i) => {
       const item = items[index[i] as number];
-      if (item === undefined) throw new Error(`keyed mark index ${index[i]} has no datum`);
-      tag(child, describe(item));
+      if (item === undefined) throw new Error(`decorated mark index ${index[i]} has no datum`);
+      apply(child, item);
     });
     return group;
   };
+}
+
+/**
+ * A render transform that tags each element with its datum's keys for the enhancement layer, and
+ * optionally decorates it further.
+ */
+export function keyed<T>(
+  items: readonly T[],
+  describe: (item: T) => MarkDatum,
+  also?: (el: Element, item: T) => void,
+): Plot.RenderFunction {
+  return decorate(items, (el, item) => {
+    tag(el, describe(item));
+    also?.(el, item);
+  });
 }
 
 /** Writes a datum's keys onto an element. */
