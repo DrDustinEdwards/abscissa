@@ -282,3 +282,90 @@ describe("enhance: selecting a year, page-set filters and links", () => {
     await on.close();
   });
 });
+
+describe("enhance: series filters on a year chart, and focus across update()", () => {
+  const YEARS = '[data-example="years"]';
+
+  /** Loads the enhancement module in the page and returns a fresh chart for the years example. */
+  const PREPARE = `
+    const load = new Function("url", "return import(url)");
+    const { enhance } = await load("./enhance.js");
+    const section = document.querySelector('[data-example="years"]');
+    enhance(section)[0].destroy();
+    window.__server = section.querySelector("figure").outerHTML;
+    window.__chart = enhance(section)[0];
+    window.__events = [];
+    window.__chart.figure.addEventListener("abscissa:select", (e) => window.__events.push(e.detail));
+  `;
+
+  const prepare = async (p: Page): Promise<void> => {
+    await p.evaluate(`(async () => { ${PREPARE} })()`);
+  };
+
+  it("shows a series filter from setFilter without dimming by year", async () => {
+    const p = await harness.open("index.html", "light");
+    await prepare(p);
+    const result = (await p.evaluate(`(() => {
+      window.__chart.setFilter({ field: "type", value: "Grants" });
+      const marks = [...window.__chart.figure.querySelectorAll("[data-abscissa-key]")];
+      return {
+        dimmedSeries: [...new Set(marks.filter((m) => m.hasAttribute("data-abscissa-dimmed")).map((m) => m.getAttribute("data-abscissa-series")))].sort(),
+        litSeries: [...new Set(marks.filter((m) => !m.hasAttribute("data-abscissa-dimmed")).map((m) => m.getAttribute("data-abscissa-series")))],
+        legend: [...window.__chart.figure.querySelectorAll(".abscissa-legend button")].map((b) => b.getAttribute("aria-pressed")),
+        events: window.__events.length,
+      };
+    })()`)) as { dimmedSeries: string[]; litSeries: string[]; legend: string[]; events: number };
+    expect(result).toEqual({
+      dimmedSeries: ["Publications", "Talks"],
+      litSeries: ["Grants"],
+      legend: ["false", "true", "false"],
+      events: 0,
+    });
+    // A year filter still works on the same chart.
+    const yearDimmed = (await p.evaluate(`(() => {
+      window.__chart.setFilter({ field: "year", value: "2012" });
+      return [...window.__chart.figure.querySelectorAll("[data-abscissa-key]:not([data-abscissa-dimmed])")].map((m) => m.getAttribute("data-abscissa-x"));
+    })()`)) as string[];
+    expect(new Set(yearDimmed)).toEqual(new Set(["2012"]));
+    await p.close();
+  });
+
+  it("keeps keyboard focus and the tab stop on the same mark through update(), so Escape still works", async () => {
+    const p = await harness.open("index.html", "light");
+    await prepare(p);
+    await p.$eval(`${YEARS} [data-abscissa-key="2012|Grants"]`, (el) => (el as SVGElement).focus());
+    await p.keyboard.press("Enter");
+    await p.evaluate(`window.__chart.update(window.__server)`);
+    const after = (await p.evaluate(`(() => {
+      const figure = window.__chart.figure;
+      return {
+        focused: document.activeElement?.getAttribute("data-abscissa-key") ?? null,
+        stops: [...figure.querySelectorAll('[data-abscissa-key][tabindex="0"]')].map((m) => m.getAttribute("data-abscissa-key")),
+      };
+    })()`)) as { focused: string | null; stops: string[] };
+    expect(after).toEqual({ focused: "2012|Grants", stops: ["2012|Grants"] });
+    await p.keyboard.press("Escape");
+    const last = (await p.evaluate("window.__events.at(-1)")) as { value: string | null };
+    expect(last.value).toBeNull();
+    await p.close();
+  });
+
+  it("moves focus to the same year when the focused mark is gone after update()", async () => {
+    const p = await harness.open("index.html", "light");
+    await prepare(p);
+    await p.$eval(`${YEARS} [data-abscissa-key="2012|Grants"]`, (el) => (el as SVGElement).focus());
+    const focused = await p.evaluate(`(() => {
+      const template = document.createElement("template");
+      template.innerHTML = window.__server;
+      const gone = template.content.querySelector('[data-abscissa-key="2012|Grants"]');
+      if (!gone) throw new Error("mark not found");
+      gone.remove();
+      const next = template.innerHTML;
+      window.__chart.update(next);
+      const el = document.activeElement;
+      return [el?.getAttribute("data-abscissa-x"), el?.getAttribute("tabindex")];
+    })()`);
+    expect(focused).toEqual(["2012", "0"]);
+    await p.close();
+  });
+});

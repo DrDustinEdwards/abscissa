@@ -356,9 +356,15 @@ call again: a figure is enhanced once.
 `{ figure; update(markup); setFilter(filter); clear(); destroy() }`.
 
 - `update` swaps in new server markup for the same chart, animating marks
-  that share a key, and keeps the current filter.
+  that share a key. It keeps the current filter, and keeps the tab stop (and
+  keyboard focus, if a reader was in the chart) on the mark with the same key;
+  if that mark is gone, on the first mark of the same category; otherwise on
+  the mark at the nearest position.
 - `setFilter({ field, value })` shows a filter the page chose (from its own
-  controls or the URL); `setFilter(null)` removes it.
+  controls or the URL); `setFilter(null)` removes it. A filter on the chart's
+  series field (for example `{ field: "type", value: "Grants" }`) emphasizes
+  that series and presses its legend entry, even on a chart whose clicks
+  filter by x.
 - `clear()` removes the filter and range.
 - `destroy()` restores the server markup.
 

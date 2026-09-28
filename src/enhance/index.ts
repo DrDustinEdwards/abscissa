@@ -58,12 +58,14 @@ export interface EnhancedChart {
   readonly figure: HTMLElement;
   /**
    * Replaces the chart with new server-rendered markup for the same chart, animating marks that
-   * share a key from their old shape to their new one.
+   * share a key from their old shape to their new one. The filter, the tab stop and keyboard
+   * focus stay on the mark with the same key, or the nearest one if it is gone.
    */
   update(markup: string): void;
   /**
    * Shows a filter the page chose (from its own controls, or a URL) without firing
-   * `abscissa:select`: the page already knows. `null` clears it.
+   * `abscissa:select`: the page already knows. A filter on the series field emphasizes that
+   * series even where clicks filter by x. `null` clears it.
    */
   setFilter(filter: { readonly field: string; readonly value: string } | null): void;
   /**
@@ -418,14 +420,27 @@ class Chart implements EnhancedChart {
       : this.focusIndex;
   }
 
-  private moveFocus(index: number): void {
+  private moveFocus(index: number, focus = true): void {
     const from = this.marks[this.focusIndex];
     const to = this.marks[index];
     if (!to) return;
     from?.setAttribute("tabindex", "-1");
     to.setAttribute("tabindex", "0");
     this.focusIndex = index;
-    to.focus();
+    if (focus) to.focus();
+  }
+
+  /**
+   * The mark to carry the tab stop after an update: the same key if it still exists, else the
+   * first mark in the same category, else the mark at the nearest position in reading order.
+   */
+  private successor(key: string, x: string | null, index: number): number {
+    const same = this.marks.findIndex((m) => m.getAttribute("data-abscissa-key") === key);
+    if (same !== -1) return same;
+    const column =
+      x === null ? -1 : this.marks.findIndex((m) => m.getAttribute("data-abscissa-x") === x);
+    if (column !== -1) return column;
+    return Math.min(index, this.marks.length - 1);
   }
 
   private brushBetween(a: number, b: number): void {
@@ -454,11 +469,17 @@ class Chart implements EnhancedChart {
   private select(next: { field: string; value: string } | null, notify: boolean, x?: string): void {
     const previous = this.selected;
     this.selected = next;
+    const seriesField = this.figure.getAttribute("data-abscissa-series-field");
+    // A filter on the series field matches by series even where a click filters by x, so a
+    // legend entry or setFilter can emphasize one series on a chart that selects years.
+    const bySeries = next !== null && next.field === seriesField;
     for (const mark of this.marks) {
       const match =
         next !== null &&
-        mark.getAttribute("data-abscissa-field") === next.field &&
-        mark.getAttribute("data-abscissa-value") === next.value;
+        (bySeries
+          ? mark.getAttribute("data-abscissa-series") === next.value
+          : mark.getAttribute("data-abscissa-field") === next.field &&
+            mark.getAttribute("data-abscissa-value") === next.value);
       mark.toggleAttribute("data-abscissa-dimmed", next !== null && !match);
       if (mark.hasAttribute("aria-pressed")) mark.setAttribute("aria-pressed", String(match));
     }
@@ -466,7 +487,7 @@ class Chart implements EnhancedChart {
       ".abscissa-legend button",
     )) {
       const value = button.parentElement?.getAttribute("data-abscissa-series");
-      button.setAttribute("aria-pressed", String(next !== null && value === next.value));
+      button.setAttribute("aria-pressed", String(bySeries && value === next?.value));
     }
     const field = next?.field ?? previous?.field;
     if (field === undefined || !notify) return;
@@ -522,6 +543,12 @@ class Chart implements EnhancedChart {
       before.set(mark.getAttribute("data-abscissa-key") ?? "", attrs);
     }
     const selected = this.selected;
+    // The tab stop (and focus, if a reader is in the chart) moves to the same mark after the swap.
+    const stop = this.marks[this.focusIndex];
+    const stopKey = stop?.getAttribute("data-abscissa-key") ?? null;
+    const stopX = stop?.getAttribute("data-abscissa-x") ?? null;
+    const stopIndex = this.focusIndex;
+    const hadFocus = stop !== undefined && document.activeElement === stop;
     this.teardown();
     for (const name of this.figure.getAttributeNames()) this.figure.removeAttribute(name);
     for (const name of incoming.getAttributeNames()) {
@@ -531,6 +558,9 @@ class Chart implements EnhancedChart {
     this.attach();
     // Restoring the page's own selection is not news to the page, so it fires nothing.
     if (selected) this.select(selected, false);
+    if (stopKey !== null && this.marks.length > 0) {
+      this.moveFocus(this.successor(stopKey, stopX, stopIndex), hadFocus);
+    }
     if (reducedMotion()) return;
 
     const tweens: { mark: Element; name: string; from: number; to: number }[] = [];

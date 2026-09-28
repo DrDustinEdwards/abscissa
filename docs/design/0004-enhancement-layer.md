@@ -44,13 +44,22 @@ readers."
    interactive CV, had to suppress those echoes.)
 8. **What a click filters by is the chart's choice, made on the server.** A
    stacked bar filters by its series by default and by its category with
-   `filterBy: "x"`, because a CV selects a year, not a publication type.
-9. **Links without script, filters with it.** A bar chart given `href` renders
+   `filterBy: "x"`, because a CV selects a year, not a publication type. A
+   filter on the series field still matches by series on such a chart, so the
+   legend and `setFilter` can emphasize a type while clicks select years.
+   (Added in alpha.5, after the CV found series filters dimmed every bar.)
+9. **An update never takes focus away.** `update()` replaces the marks, so it
+   moves the roving tab stop, and focus if a reader was in the chart, to the
+   mark with the same key, else the first of the same category, else the
+   nearest position. Keyboard users keep their place and Escape keeps working;
+   pages do not restore focus themselves, which left the tab stop disagreeing
+   with the real focus. (Added in alpha.5.)
+10. **Links without script, filters with it.** A bar chart given `href` renders
    each bar as a link, so a reader without script can still reach the
    filtered view. The SVG is then a named group, not one image, because
    `role="img"` would hide the links. The enhancement layer turns the links
    into filter buttons and keeps the address in `data-abscissa-href`.
-10. **`destroy()` restores the server markup**, so a page can hand a chart back
+11. **`destroy()` restores the server markup**, so a page can hand a chart back
    to server rendering, and tests can check the round trip.
 
 ## Consequences

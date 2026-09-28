@@ -7,6 +7,19 @@ change the public API; every such change is listed here.
 
 ## [Unreleased]
 
+## [0.1.0-alpha.5] - 2026-09-28
+
+From the interactive CV's integration of alpha.4.
+
+### Fixed
+
+- A filter on the series field (from `setFilter` or a legend entry) on a
+  `filterBy: "x"` chart dimmed every bar. It now emphasizes that series and
+  presses its legend entry.
+- `update()` dropped keyboard focus, so Escape then did nothing. It now keeps
+  the tab stop and focus on the mark with the same key, or the first mark of
+  the same category, or the nearest one.
+
 ## [0.1.0-alpha.4] - 2026-09-28
 
 From the first customer's integration (the interactive CV).
@@ -88,7 +101,8 @@ is built. In active development: the API will change.
   `dustinedwardsTheme`.
 - `checkTheme`: WCAG contrast and color-vision-deficiency checks for a theme.
 
-[Unreleased]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.4...HEAD
+[Unreleased]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.5...HEAD
+[0.1.0-alpha.5]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.4...v0.1.0-alpha.5
 [0.1.0-alpha.4]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.3...v0.1.0-alpha.4
 [0.1.0-alpha.3]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.2...v0.1.0-alpha.3
 [0.1.0-alpha.2]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.1...v0.1.0-alpha.2
