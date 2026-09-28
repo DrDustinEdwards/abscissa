@@ -1,6 +1,6 @@
 {
   "name": "abscissa",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "description": "Accessible, server-rendered charts and scientific figures for the web",
   "keywords": [
     "charts",
@@ -47,6 +47,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check": "npm run typecheck && npm run lint && npm test",
     "lint": "biome check .",
     "format": "biome format --write .",
     "test": "vitest run",

@@ -48,6 +48,7 @@ export {
   type ColorVision,
   colorDifference,
   contrastRatio,
+  type Rgb,
   simulateColorVision,
 } from "./theme/color.js";
 export { defineTheme } from "./theme/define.js";

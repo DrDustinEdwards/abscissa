@@ -73,7 +73,7 @@ export interface FigureParts {
 }
 
 /** Throws unless `alt` is meaningful text. */
-export function requireAlt(alt: string | undefined, kind: string): string {
+function requireAlt(alt: string | undefined, kind: string): string {
   const trimmed = (alt ?? "").trim();
   if (trimmed === "") {
     throw new Error(`${kind}: alt is required and must describe what the chart shows`);

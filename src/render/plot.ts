@@ -9,7 +9,7 @@ import { parseHTML } from "linkedom";
 import { escapeHtml } from "../html.js";
 
 /** A document for Plot to draw into. linkedom, because it runs in Node, Workers, Deno and Bun. */
-export function createDocument(): Document {
+function createDocument(): Document {
   const { document } = parseHTML("<!doctype html><html><body></body></html>");
   // linkedom implements the subset of the DOM that Plot and Abscissa use; its types differ.
   return document as unknown as Document;
@@ -125,7 +125,7 @@ const TEXT_NODE = 3;
  * Serializes an SVG tree with every attribute and text node escaped, so the markup is valid in
  * HTML and XML alike whatever the data contains. Childless elements self-close, as SVG allows.
  */
-export function serialize(node: Node): string {
+function serialize(node: Node): string {
   if (node.nodeType === TEXT_NODE) return escapeHtml(node.textContent ?? "");
   if (node.nodeType !== ELEMENT_NODE) return "";
   const el = node as Element;

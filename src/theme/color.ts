@@ -17,7 +17,7 @@ export function isHexColor(value: string): value is HexColor {
 }
 
 /** Parses `#rgb` or `#rrggbb` into sRGB channels from 0 to 1. Throws on anything else. */
-export function parseHex(color: string): Rgb {
+function parseHex(color: string): Rgb {
   if (!isHexColor(color)) {
     throw new Error(`"${color}" is not a hex color (#rgb or #rrggbb)`);
   }
@@ -47,7 +47,7 @@ function fromLinear(c: number): number {
 }
 
 /** WCAG 2 relative luminance, from 0 (black) to 1 (white). */
-export function relativeLuminance(color: string): number {
+function relativeLuminance(color: string): number {
   const [r, g, b] = linearize(parseHex(color));
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
@@ -101,7 +101,7 @@ export function simulateColorVision(color: string, vision: ColorVision): Rgb {
 export type Lab = readonly [number, number, number];
 
 /** Converts sRGB channels (0 to 1) to CIE L*a*b*. */
-export function rgbToLab(rgb: Rgb): Lab {
+function rgbToLab(rgb: Rgb): Lab {
   const [r, g, b] = linearize(rgb);
   const x = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047;
   const y = 0.2126729 * r + 0.7151522 * g + 0.072175 * b;
