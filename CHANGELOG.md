@@ -7,6 +7,17 @@ change the public API; every such change is listed here.
 
 ## [Unreleased]
 
+### Added
+
+- The gallery is hosted at https://abscissa.dustinedwards.info: an
+  assets-only Cloudflare Worker with a Content-Security-Policy, a 404 page,
+  `npm run deploy:gallery`, and a workflow that deploys on pushes to `main`.
+
+### Changed
+
+- Gallery pages link their stylesheet and script as files instead of
+  carrying them inline.
+
 ## [0.1.0-alpha.5] - 2026-09-28
 
 From the interactive CV's integration of alpha.4.

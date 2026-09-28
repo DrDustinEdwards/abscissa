@@ -195,7 +195,15 @@ npm run build && npm run gallery                  # site/dist
 npm run test:browser                              # accessibility, interaction, visual
 ```
 
-Development needs Node.js 24, which runs the TypeScript scripts directly. See
+Development needs Node.js 24, which runs the TypeScript scripts directly.
+
+The gallery is hosted at https://abscissa.dustinedwards.info as an assets-only
+Cloudflare Worker (`wrangler.jsonc`), with a strict Content-Security-Policy
+and security headers from `site/_headers`. `npm run deploy:gallery` builds and
+deploys it; the "Deploy gallery" workflow does the same on every push to
+`main` once the repository has the `CLOUDFLARE_API_TOKEN` and
+`CLOUDFLARE_ACCOUNT_ID` secrets. See
+[docs/design/0008-gallery-hosting.md](docs/design/0008-gallery-hosting.md). See
 [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow and
 [docs/design](docs/design/) for why Abscissa is built the way it is.
 

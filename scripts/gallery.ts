@@ -92,18 +92,28 @@ section.example h2 { margin: 0 0 16px; font-size: 1.125rem; }
 .report li { margin: 2px 0; }
 `;
 
-function page(theme: Theme, examples: readonly Example[], nav: string): string {
+/** A page's stylesheet: the theme, the page's colors from the theme, and the page layout. */
+function pageCss(theme: Theme): string {
+  return `${stylesheet(theme)}
+:root {
+  --page-bg: light-dark(${theme.light.background}, ${theme.dark.background});
+  --page-text: light-dark(${theme.light.text}, ${theme.dark.text});
+  --page-rule: light-dark(${theme.light.grid}, ${theme.dark.grid});
+  --page-code: light-dark(${theme.light.grid}55, ${theme.dark.grid}55);
+}
+${PAGE_CSS}`;
+}
+
+/**
+ * One gallery page. It links its stylesheet and script as files, never inline, so the site's
+ * Content-Security-Policy can allow scripts and style sheets from its own origin only.
+ */
+function page(theme: Theme, css: string, examples: readonly Example[], nav: string): string {
   const report = checkTheme(theme);
   const findings =
     report.issues.length === 0
       ? "<p>No findings.</p>"
       : `<ul>${report.issues.map((i) => `<li>${escapeText(i.severity)}: ${escapeText(i.message)}</li>`).join("")}</ul>`;
-  const vars = `:root {
-  --page-bg: light-dark(${theme.light.background}, ${theme.dark.background});
-  --page-text: light-dark(${theme.light.text}, ${theme.dark.text});
-  --page-rule: light-dark(${theme.light.grid}, ${theme.dark.grid});
-  --page-code: light-dark(${theme.light.grid}55, ${theme.dark.grid}55);
-}`;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -111,9 +121,7 @@ function page(theme: Theme, examples: readonly Example[], nav: string): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Abscissa gallery: ${escapeText(theme.name)} theme</title>
 <meta name="description" content="Every Abscissa chart, server-rendered, in the ${escapeText(theme.name)} theme.">
-<style>${stylesheet(theme)}
-${vars}
-${PAGE_CSS}</style>
+<link rel="stylesheet" href="${css}">
 </head>
 <body>
 <main>
@@ -135,22 +143,7 @@ ${e.markup}
   )
   .join("\n")}
 </main>
-<script type="module">
-import { enhance } from "./enhance.js";
-enhance();
-const button = document.querySelector("button.scheme");
-button.addEventListener("click", () => {
-  const dark = document.documentElement.dataset.scheme !== "dark";
-  document.documentElement.dataset.scheme = dark ? "dark" : "light";
-  button.setAttribute("aria-pressed", String(dark));
-});
-for (const type of ["abscissa:select", "abscissa:brush"]) {
-  document.addEventListener(type, (event) => {
-    const log = event.target.closest("section")?.querySelector(".events");
-    if (log) log.textContent = type + " " + JSON.stringify(event.detail);
-  });
-}
-</script>
+<script type="module" src="gallery.js"></script>
 </body>
 </html>
 `;
@@ -158,9 +151,9 @@ for (const type of ["abscissa:select", "abscissa:brush"]) {
 
 const examples = await loadExamples();
 mkdirSync(outDir, { recursive: true });
-const pages: [Theme, string][] = [
-  [defaultTheme, "index.html"],
-  [dustinedwardsTheme, "dustinedwards.html"],
+const pages: [Theme, string, string][] = [
+  [defaultTheme, "index.html", "index.css"],
+  [dustinedwardsTheme, "dustinedwards.html", "dustinedwards.css"],
 ];
 const nav = (current: string): string =>
   pages
@@ -170,8 +163,31 @@ const nav = (current: string): string =>
         : `<a href="${f}">${escapeText(t.name)}</a>`,
     )
     .join(" | ");
-for (const [theme, file] of pages) {
-  writeFileSync(join(outDir, file), page(theme, examples, nav(file)));
+for (const [theme, file, css] of pages) {
+  writeFileSync(join(outDir, css), pageCss(theme));
+  writeFileSync(join(outDir, file), page(theme, css, examples, nav(file)));
 }
+writeFileSync(
+  join(outDir, "404.html"),
+  `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Not found: Abscissa gallery</title>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+<main>
+<h1>Not found</h1>
+<p>There is no page at this address. The gallery is at <a href="/">abscissa.dustinedwards.info</a>, and the code at <a href="https://github.com/DrDustinEdwards/abscissa">github.com/DrDustinEdwards/abscissa</a>.</p>
+</main>
+</body>
+</html>
+`,
+);
 copyFileSync(join(root, "dist", "enhance", "index.js"), join(outDir, "enhance.js"));
+// Served as files beside the pages: the gallery script, and the security and caching headers.
+copyFileSync(join(root, "site", "gallery.js"), join(outDir, "gallery.js"));
+copyFileSync(join(root, "site", "_headers"), join(outDir, "_headers"));
 console.log(`gallery: ${examples.length} examples, ${pages.length} themes -> ${outDir}`);

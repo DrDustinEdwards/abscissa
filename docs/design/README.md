@@ -23,6 +23,7 @@ Each record says where a decision came from:
 | [0005](0005-scientific-charts.md) | Scientific chart types and the plan for the rest |
 | [0006](0006-api-and-quality.md) | API shape, errors, dependencies and tests |
 | [0007](0007-site-migrations.md) | What moving each existing site onto Abscissa involves |
+| [0008](0008-gallery-hosting.md) | Hosting the gallery, and its Content-Security-Policy |
 
 A new record is added when a decision changes; an old one is not rewritten
 except to link to the record that supersedes it.

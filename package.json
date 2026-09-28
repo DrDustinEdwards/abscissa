@@ -52,6 +52,7 @@
     "format": "biome format --write .",
     "test": "vitest run",
     "gallery": "node scripts/gallery.ts",
+    "deploy:gallery": "npm run build && npm run gallery && npx --yes wrangler@4.143.0 deploy",
     "test:browser": "vitest run --config vitest.browser.config.ts",
     "prepare": "npm run build"
   },
