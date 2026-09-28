@@ -7,6 +7,13 @@ change the public API; every such change is listed here.
 
 ## [Unreleased]
 
+## [0.1.0-alpha.2] - 2026-09-28
+
+### Fixed
+
+- The package builds itself when installed from git (`prepare` replaces
+  `prepack`, and still runs before `npm pack` and `npm publish`).
+
 ## [0.1.0-alpha.1] - 2026-09-28
 
 ### Added
@@ -38,6 +45,7 @@ is built. In active development: the API will change.
   `dustinedwardsTheme`.
 - `checkTheme`: WCAG contrast and color-vision-deficiency checks for a theme.
 
-[Unreleased]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.1...HEAD
+[Unreleased]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.2...HEAD
+[0.1.0-alpha.2]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.1...v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.0...v0.1.0-alpha.1
 [0.1.0-alpha.0]: https://github.com/DrDustinEdwards/abscissa/releases/tag/v0.1.0-alpha.0

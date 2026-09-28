@@ -1,6 +1,6 @@
 {
   "name": "abscissa",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "description": "Accessible, server-rendered charts and scientific figures for the web",
   "keywords": [
     "charts",
@@ -52,7 +52,7 @@
     "test": "vitest run",
     "gallery": "node scripts/gallery.ts",
     "test:browser": "vitest run --config vitest.browser.config.ts",
-    "prepack": "npm run build"
+    "prepare": "npm run build"
   },
   "dependencies": {
     "@observablehq/plot": "0.6.17",
