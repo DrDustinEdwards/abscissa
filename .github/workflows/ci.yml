@@ -44,10 +44,14 @@ jobs:
       - name: Allow Chrome's sandbox
         run: echo 0 | sudo tee /proc/sys/kernel/apparmor_restrict_unprivileged_userns
       - run: npm run test:browser
-      - name: Keep visual diffs from a failed run
+      # A failed visual run keeps its diffs, and the images it wrote for examples that had none,
+      # so a maintainer can review them and commit the ones that are right.
+      - name: Keep visual output from a failed run
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: visual-output
-          path: test/browser/__output__/
+          path: |
+            test/browser/__output__/
+            test/browser/__snapshots__/linux/
           if-no-files-found: ignore
