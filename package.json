@@ -1,0 +1,61 @@
+{
+  "name": "abscissa",
+  "version": "0.1.0-alpha.0",
+  "description": "Accessible, server-rendered charts and scientific figures for the web",
+  "keywords": [
+    "charts",
+    "svg",
+    "server-side-rendering",
+    "accessibility",
+    "data-visualization",
+    "scientific-figures",
+    "observable-plot"
+  ],
+  "homepage": "https://abscissa.dustinedwards.info",
+  "bugs": {
+    "url": "https://github.com/DrDustinEdwards/abscissa/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DrDustinEdwards/abscissa.git"
+  },
+  "license": "MIT",
+  "author": "Dustin Edwards (https://dustinedwards.info)",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "next"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "test": "vitest run",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "@observablehq/plot": "0.6.17",
+    "linkedom": "0.18.13"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.14",
+    "@types/node": "22.20.0",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}

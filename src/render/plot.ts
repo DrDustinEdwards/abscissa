@@ -1,0 +1,176 @@
+/**
+ * Runs Observable Plot on the server and turns its SVG into Abscissa markup: no inline styles,
+ * no per-chart `<style>`, marks named by `data-abscissa-mark`, every drawn datum keyed so the
+ * enhancement layer can find it, and coordinates rounded so output is stable across engines.
+ */
+
+import * as Plot from "@observablehq/plot";
+import { parseHTML } from "linkedom";
+import { escapeHtml } from "../html.js";
+
+/** A document for Plot to draw into. linkedom, because it runs in Node, Workers, Deno and Bun. */
+export function createDocument(): Document {
+  const { document } = parseHTML("<!doctype html><html><body></body></html>");
+  // linkedom implements the subset of the DOM that Plot and Abscissa use; its types differ.
+  return document as unknown as Document;
+}
+
+/** What the enhancement layer needs to know about one drawn datum. */
+export interface MarkDatum {
+  /** Unique within the chart and stable across re-renders of the same data (for transitions). */
+  readonly key: string;
+  /** The value a click filters on, and the name of the field it belongs to. */
+  readonly filter?: { readonly field: string; readonly value: string };
+  /** The x value as text, for brush and hover. */
+  readonly x?: string;
+  /** The series name, when the chart has series. */
+  readonly series?: string;
+}
+
+/**
+ * A Plot render transform that tags each element a mark draws with its datum's key. Plot draws
+ * one element per index entry, in index order, for the marks Abscissa keys (bar, dot, cell, rect).
+ */
+export function keyed<T>(
+  items: readonly T[],
+  describe: (item: T) => MarkDatum,
+): Plot.RenderFunction {
+  return (index, scales, values, dimensions, context, next) => {
+    if (!next) throw new Error("keyed() must be used as a render transform");
+    const group = next(index, scales, values, dimensions, context);
+    if (!group) return group;
+    const children = [...group.children];
+    if (children.length !== index.length) {
+      throw new Error(`a keyed mark drew ${children.length} elements for ${index.length} data`);
+    }
+    children.forEach((child, i) => {
+      const item = items[index[i] as number];
+      if (item === undefined) throw new Error(`keyed mark index ${index[i]} has no datum`);
+      tag(child, describe(item));
+    });
+    return group;
+  };
+}
+
+/** Writes a datum's keys onto an element. */
+export function tag(el: Element, datum: MarkDatum): void {
+  el.setAttribute("data-abscissa-key", datum.key);
+  if (datum.filter) {
+    el.setAttribute("data-abscissa-field", datum.filter.field);
+    el.setAttribute("data-abscissa-value", datum.filter.value);
+  }
+  if (datum.x !== undefined) el.setAttribute("data-abscissa-x", datum.x);
+  if (datum.series !== undefined) el.setAttribute("data-abscissa-series", datum.series);
+}
+
+/** A scale as the enhancement layer needs it to turn a pointer position back into data. */
+export interface ScaleDescription {
+  readonly type: string;
+  readonly domain: readonly (number | string)[];
+  readonly range: readonly number[];
+}
+
+const NUMBER = /-?\d+\.\d{3,}(?:e-?\d+)?/g;
+const ROUNDED_ATTRIBUTES = new Set([
+  "x",
+  "y",
+  "x1",
+  "x2",
+  "y1",
+  "y2",
+  "cx",
+  "cy",
+  "r",
+  "width",
+  "height",
+  "d",
+  "points",
+  "transform",
+  "viewBox",
+]);
+
+function roundCoordinates(root: Element): void {
+  for (const el of [root, ...root.querySelectorAll("*")]) {
+    for (const name of el.getAttributeNames()) {
+      if (!ROUNDED_ATTRIBUTES.has(name)) continue;
+      const value = el.getAttribute(name);
+      if (value === null) continue;
+      el.setAttribute(
+        name,
+        value.replace(NUMBER, (n) => String(Math.round(Number(n) * 100) / 100)),
+      );
+    }
+  }
+}
+
+const ELEMENT_NODE = 1;
+const TEXT_NODE = 3;
+
+/**
+ * Serializes an SVG tree with every attribute and text node escaped, so the markup is valid in
+ * HTML and XML alike whatever the data contains. Childless elements self-close, as SVG allows.
+ */
+export function serialize(node: Node): string {
+  if (node.nodeType === TEXT_NODE) return escapeHtml(node.textContent ?? "");
+  if (node.nodeType !== ELEMENT_NODE) return "";
+  const el = node as Element;
+  const attrs = el
+    .getAttributeNames()
+    .map((name) => ` ${name}="${escapeHtml(el.getAttribute(name) ?? "")}"`)
+    .join("");
+  const children = [...el.childNodes].map(serialize).join("");
+  return children === ""
+    ? `<${el.localName}${attrs}/>`
+    : `<${el.localName}${attrs}>${children}</${el.localName}>`;
+}
+
+/** The result of {@link renderPlot}. */
+export interface RenderedPlot {
+  readonly svg: string;
+  readonly x?: ScaleDescription;
+}
+
+/**
+ * Draws a Plot specification into SVG markup named by `alt`. Throws if Plot warns, because a
+ * warning means the chart shown would not be the chart intended.
+ */
+export function renderPlot(options: Plot.PlotOptions, alt: string): RenderedPlot {
+  const document = createDocument();
+  const svg = Plot.plot({ ...options, document }) as unknown as SVGSVGElement & Plot.Plot;
+
+  const warning = [...svg.querySelectorAll("text")].find((t) => t.textContent?.includes("⚠"));
+  if (warning) {
+    throw new Error(`Observable Plot warned while drawing "${alt}": ${warning.textContent ?? ""}`);
+  }
+  if (svg.localName !== "svg") {
+    throw new Error(
+      "Abscissa charts must draw a single SVG; remove Plot options that add a legend or caption",
+    );
+  }
+
+  for (const style of svg.querySelectorAll("style")) style.remove();
+  for (const name of ["class", "font-family", "font-size", "style"]) svg.removeAttribute(name);
+  // Plot names groups with aria-label, which is invalid on a <g> without a role and hidden anyway
+  // inside role="img". The name moves to a data attribute for CSS and the enhancement layer.
+  for (const group of svg.querySelectorAll("[aria-label]")) {
+    group.setAttribute("data-abscissa-mark", group.getAttribute("aria-label") ?? "");
+    group.removeAttribute("aria-label");
+  }
+  roundCoordinates(svg);
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", alt);
+
+  let x: ScaleDescription | undefined;
+  const scale = svg.scale("x");
+  if (scale?.domain && scale.range && scale.type) {
+    x = {
+      type: scale.type,
+      domain: [...scale.domain].map((d) =>
+        d instanceof Date ? d.getTime() : (d as number | string),
+      ),
+      range: [...scale.range] as number[],
+    };
+  }
+  const markup = serialize(svg);
+  return x ? { svg: markup, x } : { svg: markup };
+}

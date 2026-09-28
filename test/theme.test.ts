@@ -1,0 +1,140 @@
+import { describe, expect, it } from "vitest";
+import {
+  checkTheme,
+  colorDifference,
+  contrastRatio,
+  defaultTheme,
+  defineTheme,
+  dustinedwardsTheme,
+  simulateColorVision,
+  stylesheet,
+  type Theme,
+} from "../src/index.js";
+
+describe("contrastRatio", () => {
+  it("is 21 for black on white and 1 for a color on itself", () => {
+    expect(contrastRatio("#000000", "#ffffff")).toBeCloseTo(21, 5);
+    expect(contrastRatio("#777", "#777777")).toBe(1);
+  });
+
+  it("matches a published WCAG value", () => {
+    // #767676 on white is the classic lightest gray to pass 4.5:1.
+    expect(contrastRatio("#767676", "#fff")).toBeCloseTo(4.54, 2);
+  });
+
+  it("rejects colors it cannot measure", () => {
+    expect(() => contrastRatio("red", "#fff")).toThrow(/not a hex color/);
+  });
+});
+
+describe("color vision simulation", () => {
+  it("leaves grays unchanged", () => {
+    const [r, g, b] = simulateColorVision("#808080", "deuteranopia");
+    expect(r).toBeCloseTo(g, 2);
+    expect(g).toBeCloseTo(b, 2);
+  });
+
+  it("collapses red and green under deuteranopia but not typical vision", () => {
+    const typical = colorDifference("#d62728", "#2ca02c");
+    const deutan = colorDifference("#d62728", "#2ca02c", "deuteranopia");
+    expect(typical).toBeGreaterThan(40);
+    expect(deutan).toBeLessThan(typical / 2);
+  });
+
+  it("measures zero difference between identical colors", () => {
+    expect(colorDifference("#123456", "#123456", "tritanopia")).toBe(0);
+  });
+});
+
+describe("checkTheme", () => {
+  it("passes both built-in themes with no errors", () => {
+    expect(checkTheme(defaultTheme).ok).toBe(true);
+    expect(checkTheme(dustinedwardsTheme).ok).toBe(true);
+  });
+
+  it("reports low text contrast as an error, per scheme", () => {
+    const pale: Theme = { ...defaultTheme, light: { ...defaultTheme.light, mutedText: "#bbbbbb" } };
+    const report = checkTheme(pale);
+    expect(report.ok).toBe(false);
+    const issue = report.issues.find((i) => i.check === "text-contrast");
+    expect(issue).toMatchObject({
+      severity: "error",
+      scheme: "light",
+      colors: ["#bbbbbb", "#ffffff"],
+    });
+  });
+
+  it("warns once per pair of series colors that could be confused", () => {
+    const [first, , ...rest] = defaultTheme.light.series;
+    const confusable: Theme = {
+      ...defaultTheme,
+      light: { ...defaultTheme.light, series: [first, first, ...rest] },
+    };
+    const warnings = checkTheme(confusable).issues.filter(
+      (i) =>
+        i.check === "series-difference" &&
+        i.message.includes("series 1 ") &&
+        i.message.includes(" 2 "),
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.measured).toBe(0);
+  });
+
+  it("errors when the sequential ramp does not grow away from the background", () => {
+    const [a, b, c, d, e] = defaultTheme.light.sequential;
+    const reversed: Theme = {
+      ...defaultTheme,
+      light: { ...defaultTheme.light, sequential: [e, d, c, b, a] },
+    };
+    expect(checkTheme(reversed).issues.some((i) => i.check === "sequential-order")).toBe(true);
+  });
+});
+
+describe("defineTheme", () => {
+  it("returns a valid theme unchanged", () => {
+    expect(defineTheme(defaultTheme)).toBe(defaultTheme);
+  });
+
+  it("rejects a non-hex color with its path", () => {
+    const bad = {
+      ...defaultTheme,
+      dark: { ...defaultTheme.dark, grid: "gray" },
+    } as unknown as Theme;
+    expect(() => defineTheme(bad)).toThrow(/dark\.grid: "gray" is not a hex color/);
+  });
+
+  it("rejects a palette of the wrong length", () => {
+    const short = {
+      ...defaultTheme,
+      light: { ...defaultTheme.light, series: defaultTheme.light.series.slice(0, 6) },
+    } as unknown as Theme;
+    expect(() => defineTheme(short)).toThrow(/exactly 8 colors/);
+  });
+});
+
+describe("stylesheet", () => {
+  const css = stylesheet(defaultTheme);
+
+  it("defines every palette slot with a light fallback and a light-dark() pair", () => {
+    for (let i = 1; i <= 8; i += 1) {
+      expect(css).toContain(`--abscissa-series-${i}: ${defaultTheme.light.series[i - 1]};`);
+      expect(css).toContain(
+        `--abscissa-series-${i}: light-dark(${defaultTheme.light.series[i - 1]}, ${defaultTheme.dark.series[i - 1]});`,
+      );
+    }
+  });
+
+  it("hides the gridlines the theme does not show", () => {
+    expect(css).toContain('[data-abscissa-mark="x-grid"] { display: none; }');
+    expect(css).not.toContain('[data-abscissa-mark="y-grid"] { display: none; }');
+  });
+
+  it("switches scheme under caller selectors", () => {
+    const attr = stylesheet(defaultTheme, { colorScheme: { dark: '[data-theme="dark"]' } });
+    expect(attr).toContain(':where([data-theme="dark"]) .abscissa { color-scheme: dark; }');
+  });
+
+  it("turns animation off under reduced motion", () => {
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)[^}]*animation: none/);
+  });
+});
