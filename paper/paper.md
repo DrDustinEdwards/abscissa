@@ -36,15 +36,24 @@ tracks, which share the same theming, accessibility and interaction.
 # Statement of need
 
 Research groups increasingly publish results, teaching material and
-surveillance dashboards as websites rather than PDFs. Most web charting
-libraries draw in the browser: the figure is absent until its script runs,
-invisible to search engines and other programs that read HTML, and usually
-opaque to screen readers. Grammar-of-graphics libraries such as Observable Plot
-[@plot] and Vega-Lite [@vegalite] can render static SVG, but leave accessible
-structure, site theming across color schemes and interaction to each user.
-Figures specific to a field, such as titer plots with geometric mean titers
-and limits of detection, or genome maps with strand-oriented features, are
-missing from general libraries, so each lab site redraws them by hand.
+surveillance dashboards as websites rather than PDFs. Their figures should be
+readable by everyone who visits, including people using screen readers or
+keyboards and people with color vision deficiencies, and by the programs that
+index and summarize the web. Figures specific to a field, such as titer plots
+with geometric mean titers and limits of detection, or genome maps with
+strand-oriented features, are also needed on these sites and are usually
+redrawn by hand for each one.
+
+# State of the field
+
+Most web charting libraries draw in the browser: the figure is absent until
+its script runs, invisible to search engines and other programs that read
+HTML, and usually opaque to screen readers. Grammar-of-graphics libraries such
+as Observable Plot [@plot] and Vega-Lite [@vegalite] can render static SVG,
+but leave accessible structure, site theming across color schemes and
+interaction to each user. Domain tools such as genome browsers and phylogeny
+viewers are full interactive applications rather than figures for a page, and
+general libraries do not include titer plots or genome maps.
 
 Abscissa addresses both gaps for developers of research, teaching and
 small-organization websites. It makes the accessible result the default
@@ -56,7 +65,7 @@ color vision deficiency [@machado2009]. Because rendering happens on the
 server and returns plain HTML strings, it works in any framework and in edge
 runtimes such as Cloudflare Workers.
 
-# Design
+# Software design
 
 Abscissa builds on Observable Plot [@plot] for scales, axes and marks,
 rendering into a lightweight server-side DOM, and on d3-force [@d3] for
@@ -76,7 +85,7 @@ every gallery example, automated accessibility audits with axe-core [@axe] in
 a headless browser in light and dark themes with and without script, and
 visual regression comparisons.
 
-# Research use
+# Research impact statement
 
 Abscissa was built for the websites of a virology research and teaching
 program, starting with an interactive curriculum vitae and laboratory
