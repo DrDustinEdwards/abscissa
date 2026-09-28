@@ -32,12 +32,15 @@ afterAll(async () => {
   await harness?.close();
 });
 
-function compare(name: string, actual: Uint8Array): void {
+/**
+ * Compares one image with its stored copy. With none stored, it writes one and returns false, so
+ * a run records every missing image before the test fails, not just the first.
+ */
+function compare(name: string, actual: Uint8Array): boolean {
   const stored = join(snapshots, `${name}.png`);
   if (update || !existsSync(stored)) {
     writeFileSync(stored, actual);
-    if (!update) throw new Error(`no stored image for ${name}; wrote one, review and commit it`);
-    return;
+    return update;
   }
   const expected = PNG.sync.read(readFileSync(stored));
   const received = PNG.sync.read(Buffer.from(actual));
@@ -65,6 +68,7 @@ function compare(name: string, actual: Uint8Array): void {
     writeFileSync(join(output, `${name}.diff.png`), PNG.sync.write(diff));
   }
   expect(changed, `${name}: ${changed} pixels differ`).toBeLessThanOrEqual(TOLERATED_PIXELS);
+  return true;
 }
 
 const pages = [
@@ -78,12 +82,15 @@ describe.each(pages)("%s theme", (theme, file) => {
     const page = await harness.open(file, scheme, { scripts: false });
     const sections = await page.$$("section.example");
     expect(sections.length).toBeGreaterThan(0);
+    const missing: string[] = [];
     for (const section of sections) {
       const id = await section.evaluate((el) => el.getAttribute("data-example") ?? "");
       const target = (await section.$("figure, .primitives, svg")) ?? section;
       const shot = await target.screenshot({ type: "png" });
-      compare(`${theme}-${scheme}-${id}`, shot);
+      const name = `${theme}-${scheme}-${id}`;
+      if (!compare(name, shot)) missing.push(name);
     }
     await page.close();
+    expect(missing, "no stored image for these; wrote them, review and commit them").toEqual([]);
   });
 });
