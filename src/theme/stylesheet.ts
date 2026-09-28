@@ -95,7 +95,7 @@ svg.abscissa { display: inline-block; vertical-align: middle; }
   font: inherit;
   cursor: pointer;
 }
-.abscissa-legend button[aria-pressed="false"] { text-decoration: line-through; opacity: 0.6; }
+.abscissa-legend button[aria-pressed="true"] { border-color: currentColor; font-weight: 600; }
 .abscissa-swatch {
   display: inline-block;
   width: 0.8em;

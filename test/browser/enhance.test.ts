@@ -1,0 +1,166 @@
+import type { Page } from "puppeteer";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { type Harness, startHarness } from "./harness.ts";
+
+let harness: Harness;
+let page: Page;
+
+beforeAll(async () => {
+  harness = await startHarness();
+});
+
+afterAll(async () => {
+  await harness.close();
+});
+
+const STACKED = '[data-example="stacked-bar"]';
+
+/** The focused mark's category and series. */
+const focused = (p: Page): Promise<string> =>
+  p.evaluate(() => {
+    const el = document.activeElement;
+    return `${el?.getAttribute("data-abscissa-x")}|${el?.getAttribute("data-abscissa-series")}`;
+  });
+
+const eventLog = (p: Page, example: string): Promise<string> =>
+  p.$eval(`${example} .events`, (el) => el.textContent ?? "");
+
+describe("enhance: stacked bar", () => {
+  beforeAll(async () => {
+    page = await harness.open("index.html", "light");
+  });
+
+  it("turns marks into named buttons with one tab stop", async () => {
+    const marks = await page.$$eval(`${STACKED} [data-abscissa-key]`, (els) =>
+      els.map((el) => [
+        el.getAttribute("role"),
+        el.getAttribute("tabindex"),
+        el.getAttribute("aria-label"),
+      ]),
+    );
+    expect(marks.every(([role]) => role === "button")).toBe(true);
+    expect(marks.filter(([, tab]) => tab === "0")).toHaveLength(1);
+    expect(marks[0]?.[2]).toBe("Year 2019, Publications: 3");
+    expect(await page.$eval(`${STACKED} svg`, (svg) => svg.getAttribute("role"))).toBe("group");
+    expect(await page.$(`${STACKED} [data-abscissa-key] title`)).toBeNull();
+  });
+
+  it("moves by column with left and right, and through a stack with up and down", async () => {
+    // SVG elements take focus from script; Puppeteer's page.focus() accepts only HTML elements.
+    await page.$eval(`${STACKED} [data-abscissa-key][tabindex="0"]`, (el) =>
+      (el as SVGElement).focus(),
+    );
+    expect(await focused(page)).toBe("2019|Publications");
+    await page.keyboard.press("ArrowUp");
+    expect(await focused(page)).toBe("2019|Talks");
+    await page.keyboard.press("ArrowUp");
+    expect(await focused(page)).toBe("2019|Talks");
+    await page.keyboard.press("ArrowRight");
+    expect(await focused(page)).toBe("2020|Publications");
+    await page.keyboard.press("ArrowLeft");
+    expect(await focused(page)).toBe("2019|Publications");
+    await page.keyboard.press("End");
+    expect(await focused(page)).toBe("2024|Talks");
+  });
+
+  it("shows hover details for the focused mark", async () => {
+    const tip = await page.$eval(".abscissa-tooltip:not([hidden])", (el) => el.textContent);
+    expect(tip).toBe("Year 2024, Talks: 2");
+  });
+
+  it("filters with Enter, dims other series, and clears with Escape", async () => {
+    await page.keyboard.press("Enter");
+    expect(await eventLog(page, STACKED)).toBe(
+      'abscissa:select {"chartId":"entries-by-year","field":"type","value":"Talks","x":"2024"}',
+    );
+    const dimmed = await page.$$eval(`${STACKED} [data-abscissa-dimmed]`, (els) =>
+      els.map((el) => el.getAttribute("data-abscissa-series")),
+    );
+    expect(dimmed.length).toBeGreaterThan(0);
+    expect(dimmed).not.toContain("Talks");
+    expect(await page.$eval(`${STACKED} figure [aria-live]`, (el) => el.textContent)).toBe(
+      "Filtered to Talks",
+    );
+    await page.keyboard.press("Escape");
+    expect(await eventLog(page, STACKED)).toContain('"value":null');
+    expect(await page.$(`${STACKED} [data-abscissa-dimmed]`)).toBeNull();
+  });
+
+  it("filters from the legend by pointer", async () => {
+    await page.click(`${STACKED} .abscissa-legend li[data-abscissa-series="Grants"] button`);
+    expect(await eventLog(page, STACKED)).toBe(
+      'abscissa:select {"chartId":"entries-by-year","field":"type","value":"Grants"}',
+    );
+    const pressed = await page.$$eval(`${STACKED} .abscissa-legend button`, (els) =>
+      els.map((el) => el.getAttribute("aria-pressed")),
+    );
+    expect(pressed).toEqual(["false", "true", "false"]);
+  });
+
+  it("filters by clicking a mark, and a second click clears it", async () => {
+    const mark = `${STACKED} [data-abscissa-key="2021|Talks"]`;
+    await page.click(mark);
+    expect(await eventLog(page, STACKED)).toContain('"value":"Talks"');
+    await page.click(mark);
+    expect(await eventLog(page, STACKED)).toContain('"value":null');
+  });
+
+  it("does not animate under reduced motion", async () => {
+    expect(await page.$("[data-abscissa-entering]")).toBeNull();
+  });
+
+  afterAll(async () => {
+    await page.close();
+  });
+});
+
+describe("enhance: update and destroy", () => {
+  it("animates marks to new data under the same keys, and restores server markup on destroy", async () => {
+    const p = await harness.open("index.html", "light", { reducedMotion: false });
+    const result = await p.evaluate(async () => {
+      // Built with Function so the test runner does not rewrite the page's own import().
+      const load = new Function("url", "return import(url)") as (url: string) => Promise<unknown>;
+      const { enhance } = (await load(
+        "./enhance.js",
+      )) as typeof import("../../src/enhance/index.ts");
+      const section = document.querySelector('[data-example="horizontal-bar"]');
+      if (!section) throw new Error("no example");
+      // Page load already enhanced it: take the server markup back, then enhance afresh.
+      enhance(section)[0]?.destroy();
+      const figure = section.querySelector("figure");
+      if (!figure) throw new Error("no figure");
+      const server = figure.outerHTML;
+      const [chart] = enhance(section);
+      if (!chart) throw new Error("no chart");
+      const before = figure
+        .querySelector('[data-abscissa-key="Contact|Views"]')
+        ?.getAttribute("width");
+      const next = server.replace(
+        /data-abscissa-key="Contact\|Views"([^>]*?) width="[\d.]+"/,
+        (_m, rest) => `data-abscissa-key="Contact|Views"${rest} width="100"`,
+      );
+      chart.update(next);
+      const during = figure
+        .querySelector('[data-abscissa-key="Contact|Views"]')
+        ?.getAttribute("width");
+      await new Promise((r) => setTimeout(r, 700));
+      const after = figure
+        .querySelector('[data-abscissa-key="Contact|Views"]')
+        ?.getAttribute("width");
+      chart.destroy();
+      return {
+        before,
+        during,
+        after,
+        role: figure.querySelector("svg")?.getAttribute("role"),
+        titles: figure.querySelectorAll("[data-abscissa-key] > title").length,
+      };
+    });
+    expect(Number(result.during)).toBeLessThan(100);
+    expect(result.after).toBe("100");
+    expect(result.role).toBe("img");
+    expect(result.titles).toBe(5);
+    expect(result.before).not.toBe("100");
+    await p.close();
+  });
+});

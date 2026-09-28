@@ -170,6 +170,7 @@ export function barChart<T extends object>(options: BarChartOptions<T>): string 
   const valueScale = {
     label: valueLabel,
     labelArrow: "none",
+    labelAnchor: "center",
     grid: true,
     nice: true,
     zero: true,
@@ -181,8 +182,9 @@ export function barChart<T extends object>(options: BarChartOptions<T>): string 
     {
       width,
       height,
-      marginLeft: horizontal ? Math.min(220, longest * 7 + 16) : 48,
-      marginBottom: horizontal ? 36 : 40,
+      marginTop: 16,
+      marginLeft: horizontal ? Math.min(220, longest * 7 + 16) : valueLabel === null ? 44 : 60,
+      marginBottom: 44,
       ...(horizontal
         ? {
             y: { ...categoryScale, type: "band" },
@@ -214,6 +216,7 @@ export function barChart<T extends object>(options: BarChartOptions<T>): string 
     svg,
     orientation: horizontal ? "horizontal" : "vertical",
     legend: series === undefined ? [] : plan.legend,
+    ...(series === undefined ? {} : { seriesField: series }),
     slotColors: plan.slotColors,
     table: {
       columns: [

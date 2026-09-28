@@ -48,6 +48,22 @@ theme's stylesheet through CSS custom properties, so the same markup follows
 light and dark mode without a re-render. `checkTheme(theme)` measures a
 theme's contrast and color-vision-deficiency differences.
 
+## Interaction (optional)
+
+Charts are complete without JavaScript. To add hover details, keyboard
+navigation, click-to-filter and range brushing, load the enhancement layer in
+the browser:
+
+```ts
+import { enhance } from "abscissa/enhance";
+
+enhance();
+document.addEventListener("abscissa:select", (event) => {
+  // { chartId, field: "type", value: "Publications" | null, x?: "2024" }
+  console.log(event.detail);
+});
+```
+
 ## License
 
 MIT. Copyright (c) 2026 Dustin Edwards.

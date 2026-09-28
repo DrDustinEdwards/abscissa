@@ -54,6 +54,8 @@ export interface FigureParts {
   readonly svg: string;
   readonly table: DataTable;
   readonly legend?: readonly LegendItem[];
+  /** The data field series come from, which legend filters report. */
+  readonly seriesField?: string;
   readonly x?: ScaleDescription;
   /** Which way bars run, for the entrance animation. */
   readonly orientation?: "vertical" | "horizontal";
@@ -165,6 +167,7 @@ export function figure(options: FigureOptions, parts: FigureParts): string {
       "data-abscissa": parts.kind,
       "data-abscissa-orientation": parts.orientation,
       "data-abscissa-x-scale": parts.x ? JSON.stringify(parts.x) : undefined,
+      "data-abscissa-series-field": parts.seriesField,
       style: slotStyle(parts.slotColors),
     },
     [

@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   check:
+    name: Typecheck, lint, unit and render tests, package
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -17,8 +18,31 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: "true"
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
       - run: npm run build
       - run: npm pack --dry-run
+
+  browser:
+    name: Accessibility, interaction and visual tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run gallery
+      - run: npm run test:browser
+      - name: Keep visual diffs from a failed run
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-output
+          path: test/browser/__output__/
+          if-no-files-found: ignore
