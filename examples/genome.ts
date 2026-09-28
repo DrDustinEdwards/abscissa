@@ -20,5 +20,6 @@ export default genomeTrack({
   typeDomain: ["Gene", "Accessory", "Antisense", "LTR"],
   title: "HIV-1 HXB2 genome",
   alt: "Map of the 9,719-nucleotide HIV-1 HXB2 genome: long terminal repeats at both ends; the gag, pol and env genes on the forward strand, overlapping at their junctions; six accessory genes between pol and env and after env; and the antisense asp gene on the reverse strand inside env.",
-  caption: "Coordinates approximate the HXB2 reference (GenBank K03455) and are rounded for display.",
+  caption:
+    "Coordinates approximate the HXB2 reference (GenBank K03455) and are rounded for display.",
 });

@@ -8,7 +8,11 @@ const hours = {
   Service: [6, 6, 7, 6, 5, 6],
 };
 const monthly = activities.flatMap((activity) =>
-  hours[activity].map((h, i) => ({ month: new Date(Date.UTC(2025, 8 + i, 1)), activity, hours: h })),
+  hours[activity].map((h, i) => ({
+    month: new Date(Date.UTC(2025, 8 + i, 1)),
+    activity,
+    hours: h,
+  })),
 );
 
 export default areaChart({

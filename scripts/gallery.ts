@@ -164,7 +164,9 @@ const pages: [Theme, string][] = [
 const nav = (current: string): string =>
   pages
     .map(([t, f]) =>
-      f === current ? `<strong>${escapeText(t.name)}</strong>` : `<a href="${f}">${escapeText(t.name)}</a>`,
+      f === current
+        ? `<strong>${escapeText(t.name)}</strong>`
+        : `<a href="${f}">${escapeText(t.name)}</a>`,
     )
     .join(" | ");
 for (const [theme, file] of pages) {
