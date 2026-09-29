@@ -4,11 +4,18 @@ import { enhance } from "./enhance.js";
 
 enhance();
 
+const root = document.documentElement;
 const button = document.querySelector("button.scheme");
+// The page follows the system scheme until the button is used, so the button starts out
+// reporting the scheme actually shown (F17).
+const systemDark = matchMedia("(prefers-color-scheme: dark)");
+const isDark = () => (root.dataset.scheme ? root.dataset.scheme === "dark" : systemDark.matches);
+const sync = () => button?.setAttribute("aria-pressed", String(isDark()));
+sync();
+systemDark.addEventListener("change", sync);
 button?.addEventListener("click", () => {
-  const dark = document.documentElement.dataset.scheme !== "dark";
-  document.documentElement.dataset.scheme = dark ? "dark" : "light";
-  button.setAttribute("aria-pressed", String(dark));
+  root.dataset.scheme = isDark() ? "light" : "dark";
+  sync();
 });
 
 for (const type of ["abscissa:select", "abscissa:brush"]) {

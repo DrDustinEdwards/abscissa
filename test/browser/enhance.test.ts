@@ -99,7 +99,7 @@ describe("enhance: stacked bar", () => {
   });
 
   it("filters by clicking a mark, and a second click clears it", async () => {
-    const mark = `${STACKED} [data-abscissa-key="2021|Talks"]`;
+    const mark = `${STACKED} [data-abscissa-x="2021"][data-abscissa-series="Talks"]`;
     await page.click(mark);
     expect(await eventLog(page, STACKED)).toContain('"value":"Talks"');
     await page.click(mark);
@@ -133,21 +133,15 @@ describe("enhance: update and destroy", () => {
       const server = figure.outerHTML;
       const [chart] = enhance(section);
       if (!chart) throw new Error("no chart");
-      const before = figure
-        .querySelector('[data-abscissa-key="Contact|Views"]')
-        ?.getAttribute("width");
-      const next = server.replace(
-        /data-abscissa-key="Contact\|Views"([^>]*?) width="[\d.]+"/,
-        (_m, rest) => `data-abscissa-key="Contact|Views"${rest} width="100"`,
-      );
+      const before = figure.querySelector('[data-abscissa-x="Contact"]')?.getAttribute("width");
+      const template = document.createElement("template");
+      template.innerHTML = server;
+      template.content.querySelector('[data-abscissa-x="Contact"]')?.setAttribute("width", "100");
+      const next = template.innerHTML;
       chart.update(next);
-      const during = figure
-        .querySelector('[data-abscissa-key="Contact|Views"]')
-        ?.getAttribute("width");
+      const during = figure.querySelector('[data-abscissa-x="Contact"]')?.getAttribute("width");
       await new Promise((r) => setTimeout(r, 700));
-      const after = figure
-        .querySelector('[data-abscissa-key="Contact|Views"]')
-        ?.getAttribute("width");
+      const after = figure.querySelector('[data-abscissa-x="Contact"]')?.getAttribute("width");
       chart.destroy();
       return {
         before,
@@ -222,7 +216,7 @@ describe("enhance: selecting a year, page-set filters and links", () => {
   it("selects the bar's year, and fires nothing for filters the page sets itself", async () => {
     const p = await harness.open("index.html", "light");
     await p.$eval(`${YEARS} svg`, (svg) => svg.scrollIntoView({ block: "center" }));
-    await p.click(`${YEARS} [data-abscissa-key="2012|Grants"]`);
+    await p.click(`${YEARS} [data-abscissa-x="2012"][data-abscissa-series="Grants"]`);
     expect(await eventLog(p, YEARS)).toBe(
       'abscissa:select {"chartId":"entries-by-year-select","field":"year","value":"2012","x":"2012"}',
     );
@@ -266,7 +260,7 @@ describe("enhance: selecting a year, page-set filters and links", () => {
   it("keeps bars as links without script, and turns them into filter buttons with it", async () => {
     const off = await harness.open("index.html", "light", { scripts: false });
     expect(
-      await off.$eval(`${YEARS} [data-abscissa-key="2012|Grants"]`, (a) => [
+      await off.$eval(`${YEARS} [data-abscissa-x="2012"][data-abscissa-series="Grants"]`, (a) => [
         a.tagName,
         a.getAttribute("href"),
       ]),
@@ -274,7 +268,7 @@ describe("enhance: selecting a year, page-set filters and links", () => {
     await off.close();
     const on = await harness.open("index.html", "light");
     expect(
-      await on.$eval(`${YEARS} [data-abscissa-key="2012|Grants"]`, (a) => [
+      await on.$eval(`${YEARS} [data-abscissa-x="2012"][data-abscissa-series="Grants"]`, (a) => [
         a.getAttribute("href"),
         a.getAttribute("data-abscissa-href"),
         a.getAttribute("role"),
@@ -334,7 +328,9 @@ describe("enhance: series filters on a year chart, and focus across update()", (
   it("keeps keyboard focus and the tab stop on the same mark through update(), so Escape still works", async () => {
     const p = await harness.open("index.html", "light");
     await prepare(p);
-    await p.$eval(`${YEARS} [data-abscissa-key="2012|Grants"]`, (el) => (el as SVGElement).focus());
+    await p.$eval(`${YEARS} [data-abscissa-x="2012"][data-abscissa-series="Grants"]`, (el) =>
+      (el as SVGElement).focus(),
+    );
     await p.keyboard.press("Enter");
     await p.evaluate(`window.__chart.update(window.__server)`);
     const after = (await p.evaluate(`(() => {
@@ -344,7 +340,8 @@ describe("enhance: series filters on a year chart, and focus across update()", (
         stops: [...figure.querySelectorAll('[data-abscissa-key][tabindex="0"]')].map((m) => m.getAttribute("data-abscissa-key")),
       };
     })()`)) as { focused: string | null; stops: string[] };
-    expect(after).toEqual({ focused: "2012|Grants", stops: ["2012|Grants"] });
+    const key = JSON.stringify(["2012", "Grants"]);
+    expect(after).toEqual({ focused: key, stops: [key] });
     await p.keyboard.press("Escape");
     const last = (await p.evaluate("window.__events.at(-1)")) as { value: string | null };
     expect(last.value).toBeNull();
@@ -354,11 +351,13 @@ describe("enhance: series filters on a year chart, and focus across update()", (
   it("moves focus to the same year when the focused mark is gone after update()", async () => {
     const p = await harness.open("index.html", "light");
     await prepare(p);
-    await p.$eval(`${YEARS} [data-abscissa-key="2012|Grants"]`, (el) => (el as SVGElement).focus());
+    await p.$eval(`${YEARS} [data-abscissa-x="2012"][data-abscissa-series="Grants"]`, (el) =>
+      (el as SVGElement).focus(),
+    );
     const focused = await p.evaluate(`(() => {
       const template = document.createElement("template");
       template.innerHTML = window.__server;
-      const gone = template.content.querySelector('[data-abscissa-key="2012|Grants"]');
+      const gone = template.content.querySelector('[data-abscissa-x="2012"][data-abscissa-series="Grants"]');
       if (!gone) throw new Error("mark not found");
       gone.remove();
       const next = template.innerHTML;

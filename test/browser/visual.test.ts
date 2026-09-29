@@ -5,7 +5,7 @@
  *
  * To create or accept images: UPDATE_SNAPSHOTS=1 npm run test:browser, then review the new PNGs.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import pixelmatch from "pixelmatch";
 import { PNG } from "pngjs";
@@ -16,6 +16,11 @@ const here = import.meta.dirname;
 const snapshots = resolve(here, "__snapshots__", process.platform);
 const output = resolve(here, "__output__");
 const update = process.env["UPDATE_SNAPSHOTS"] === "1";
+/**
+ * Images are stored for CI's platform (Linux). On a platform with none stored, the comparison is
+ * skipped rather than failing every example, unless UPDATE_SNAPSHOTS asks to create them (F20).
+ */
+const hasImages = existsSync(snapshots) && readdirSync(snapshots).some((f) => f.endsWith(".png"));
 
 /** Pixels that may differ before a comparison fails: anti-aliasing noise, not a changed chart. */
 const TOLERATED_PIXELS = 30;
@@ -77,7 +82,7 @@ const pages = [
 ] as const;
 const schemes = ["light", "dark"] as const;
 
-describe.each(pages)("%s theme", (theme, file) => {
+describe.skipIf(!hasImages && !update).each(pages)("%s theme", (theme, file) => {
   it.each(schemes)("matches the stored images, %s", async (scheme) => {
     const page = await harness.open(file, scheme, { scripts: false });
     const sections = await page.$$("section.example");

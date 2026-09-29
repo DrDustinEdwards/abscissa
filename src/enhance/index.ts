@@ -56,10 +56,16 @@ export interface EnhanceOptions {
 /** A chart the enhancement layer is attached to. */
 export interface EnhancedChart {
   readonly figure: HTMLElement;
+  /** The options the chart was enhanced with, every default filled in. */
+  readonly options: Readonly<Required<EnhanceOptions>>;
   /**
    * Replaces the chart with new server-rendered markup for the same chart, animating marks that
    * share a key from their old shape to their new one. The filter, the tab stop and keyboard
    * focus stay on the mark with the same key, or the nearest one if it is gone.
+   *
+   * The markup should come from Abscissa. It is parsed inertly and sanitized before it touches
+   * the page: only the elements and attributes Abscissa emits are kept, and event handlers,
+   * scripts and unsafe links are dropped (F11).
    */
   update(markup: string): void;
   /**
@@ -106,11 +112,99 @@ function center(mark: SVGGraphicsElement): { x: number; y: number } {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
-/** Marks in reading order: columns left to right, and within a column bottom to top. */
+/**
+ * A mark's place in reading order: the column (category) and row (position within it) the server
+ * wrote from the data. Geometry is the fallback for markup without them, measured on screen so
+ * facets compare correctly (F9).
+ */
+function place(mark: Element): { column: number; row: number } {
+  const column = mark.getAttribute("data-abscissa-col");
+  const row = mark.getAttribute("data-abscissa-row");
+  if (column !== null && row !== null) return { column: Number(column), row: Number(row) };
+  const box = mark.getBoundingClientRect();
+  return {
+    column: Math.round(box.left + box.width / 2),
+    row: -Math.round(box.top + box.height / 2),
+  };
+}
+
+/** Marks in reading order: columns in order, and within a column bottom to top. */
 function readingOrder(marks: SVGGraphicsElement[]): SVGGraphicsElement[] {
-  const centers = new Map(marks.map((m) => [m, center(m)]));
-  const at = (m: SVGGraphicsElement): { x: number; y: number } => centers.get(m) ?? { x: 0, y: 0 };
-  return [...marks].sort((a, b) => at(a).x - at(b).x || at(b).y - at(a).y);
+  const places = new Map(marks.map((m) => [m, place(m)]));
+  const at = (m: SVGGraphicsElement): { column: number; row: number } =>
+    places.get(m) ?? { column: 0, row: 0 };
+  return [...marks].sort((a, b) => at(a).column - at(b).column || at(a).row - at(b).row);
+}
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** The elements Abscissa's server markup is made of; update() keeps only these (F11). */
+const ALLOWED_ELEMENTS = new Set([
+  "figure",
+  "p",
+  "ul",
+  "li",
+  "span",
+  "div",
+  "figcaption",
+  "details",
+  "summary",
+  "table",
+  "caption",
+  "thead",
+  "tbody",
+  "tr",
+  "th",
+  "td",
+  "button",
+  "svg",
+  "g",
+  "rect",
+  "circle",
+  "ellipse",
+  "path",
+  "line",
+  "polyline",
+  "polygon",
+  "text",
+  "tspan",
+  "title",
+  "a",
+  "defs",
+  "clippath",
+]);
+const LINK_ATTRIBUTES = new Set(["href", "xlink:href"]);
+const SAFE_STYLE = /^(\s*--abscissa-[a-z0-9-]+\s*:\s*[^;{}<>]*;?)*\s*$/i;
+
+/** Relative and http(s) links only, as the server allows (A11). */
+function safeLink(value: string): boolean {
+  const compact = [...value].filter((ch) => ch.charCodeAt(0) > 0x20).join("");
+  if (/^[/\\][/\\]/.test(compact)) return false;
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(compact)?.[1]?.toLowerCase();
+  return scheme === undefined || scheme === "http" || scheme === "https";
+}
+
+/** Removes everything the server never emits: other elements, handlers, unsafe links and styles. */
+function sanitize(root: Element): void {
+  for (const el of [root, ...root.querySelectorAll("*")]) {
+    if (!ALLOWED_ELEMENTS.has(el.localName.toLowerCase())) {
+      el.remove();
+      continue;
+    }
+    for (const name of el.getAttributeNames()) {
+      const value = el.getAttribute(name) ?? "";
+      const lower = name.toLowerCase();
+      if (
+        lower.startsWith("on") ||
+        (LINK_ATTRIBUTES.has(lower) && !safeLink(value)) ||
+        (lower === "style" && !SAFE_STYLE.test(value)) ||
+        lower === "srcdoc" ||
+        lower === "formaction"
+      ) {
+        el.removeAttribute(name);
+      }
+    }
+  }
 }
 
 function parseScale(figure: HTMLElement): XScale | null {
@@ -135,9 +229,12 @@ function svgPoint(svg: SVGSVGElement, event: { clientX: number; clientY: number 
   return matrix ? point.matrixTransform(matrix.inverse()) : point;
 }
 
+/** The smallest pointer target, in CSS pixels (WCAG 2.2 SC 2.5.8). */
+const TARGET = 24;
+
 class Chart implements EnhancedChart {
   readonly figure: HTMLElement;
-  private readonly options: Required<EnhanceOptions>;
+  readonly options: Required<EnhanceOptions>;
   private readonly cleanup: (() => void)[] = [];
   private tooltip: HTMLElement | null = null;
   private live: HTMLElement | null = null;
@@ -148,6 +245,10 @@ class Chart implements EnhancedChart {
   private brushRect: SVGRectElement | null = null;
   /** The SVG's role as the server rendered it, restored by destroy(). */
   private serverRole: string | null = null;
+  private ring: SVGGElement | null = null;
+  private hideTimer: ReturnType<typeof setTimeout> | undefined;
+  /** The first end of a range picked by clicking twice (A4). */
+  private rangeStart: number | null = null;
 
   constructor(figure: HTMLElement, options: Required<EnhanceOptions>) {
     this.figure = figure;
@@ -209,23 +310,94 @@ class Chart implements EnhancedChart {
       tip.setAttribute("aria-hidden", "true");
       document.body.append(tip);
       this.tooltip = tip;
+      // The pointer can move onto the tooltip without it vanishing (WCAG 1.4.13, F6).
+      this.listen(tip, "pointerenter", () => clearTimeout(this.hideTimer));
+      this.listen(tip, "pointerleave", () => this.hideTip());
     }
 
     for (const mark of this.marks) {
-      this.listen(mark, "pointerenter", () => this.showTip(mark));
-      this.listen(mark, "pointerleave", () => this.hideTip());
+      const targets: Element[] = [mark];
+      const hit = this.hitArea(mark);
+      if (hit) targets.push(hit);
+      for (const target of targets) {
+        this.listen(target, "pointerenter", () => this.showTip(mark));
+        this.listen(target, "pointerleave", () => this.scheduleHide());
+        if (this.options.filter) this.listen(target, "click", () => this.toggleMark(mark));
+      }
       this.listen(mark, "focus", () => {
         this.focusIndex = this.marks.indexOf(mark);
         this.showTip(mark);
+        this.drawRing(mark);
       });
-      this.listen(mark, "blur", () => this.hideTip());
-      if (this.options.filter) this.listen(mark, "click", () => this.toggleMark(mark));
+      this.listen(mark, "blur", () => {
+        this.hideTip();
+        this.ring?.remove();
+        this.ring = null;
+      });
     }
     this.listen(svg, "keydown", (e) => this.onKey(e as KeyboardEvent));
 
     if (this.options.filter) this.attachLegend();
     if (this.options.brush && parseScale(this.figure)) this.attachBrush(svg);
     if (this.options.entrance) this.attachEntrance();
+  }
+
+  /**
+   * An invisible target around a mark smaller than 24 CSS pixels, so it is large enough to point
+   * at (WCAG 2.2 SC 2.5.8, A5). Drawn beneath the marks, so a mark still wins where targets
+   * overlap in dense charts.
+   */
+  private hitArea(mark: SVGGraphicsElement): SVGRectElement | null {
+    const scale = mark.getScreenCTM()?.a ?? 0;
+    const parent = mark.parentElement;
+    if (!(scale > 0) || !parent) return null;
+    const shapeEl = shape(mark) as SVGGraphicsElement;
+    const box = shapeEl.getBBox();
+    const side = TARGET / scale;
+    if (box.width >= side && box.height >= side) return null;
+    const width = Math.max(box.width, side);
+    const height = Math.max(box.height, side);
+    const hit = document.createElementNS(SVG_NS, "rect");
+    hit.setAttribute("class", "abscissa-hit");
+    hit.setAttribute("aria-hidden", "true");
+    hit.setAttribute("x", String(box.x + box.width / 2 - width / 2));
+    hit.setAttribute("y", String(box.y + box.height / 2 - height / 2));
+    hit.setAttribute("width", String(width));
+    hit.setAttribute("height", String(height));
+    parent.insertBefore(hit, parent.firstChild);
+    this.cleanup.push(() => hit.remove());
+    return hit;
+  }
+
+  /**
+   * Draws the focus ring around a mark: a background-colored ring inside a focus-colored one, so
+   * the ring shows against any series color beside it, not only against the background (F7).
+   */
+  private drawRing(mark: SVGGraphicsElement): void {
+    this.ring?.remove();
+    const parent = mark.parentElement;
+    if (!parent) return;
+    const box = (shape(mark) as SVGGraphicsElement).getBBox();
+    const scale = mark.getScreenCTM()?.a || 1;
+    const pad = 2 / scale;
+    const ring = document.createElementNS(SVG_NS, "g");
+    ring.setAttribute("class", "abscissa-focus-ring");
+    ring.setAttribute("aria-hidden", "true");
+    for (const [cls, extra] of [
+      ["abscissa-focus-ring-inner", pad],
+      ["abscissa-focus-ring-outer", pad + 3.5 / scale],
+    ] as const) {
+      const rect = document.createElementNS(SVG_NS, "rect");
+      rect.setAttribute("class", cls);
+      rect.setAttribute("x", String(box.x - extra));
+      rect.setAttribute("y", String(box.y - extra));
+      rect.setAttribute("width", String(box.width + 2 * extra));
+      rect.setAttribute("height", String(box.height + 2 * extra));
+      rect.setAttribute("rx", String(2 / scale));
+      ring.append(rect);
+    }
+    parent.append(ring);
+    this.ring = ring;
   }
 
   private attachLegend(): void {
@@ -260,24 +432,61 @@ class Chart implements EnhancedChart {
     this.cleanup.push(() => rect.remove());
 
     const clampX = (x: number): number => Math.min(Math.max(x, Math.min(r0, r1)), Math.max(r0, r1));
+    let dragging = false;
+    let dragged = false;
     this.listen(svg, "pointerdown", (e) => {
       const event = e as PointerEvent;
       if (event.button !== 0) return;
       start = clampX(svgPoint(svg, event).x);
-      svg.setPointerCapture(event.pointerId);
+      dragging = false;
     });
     this.listen(svg, "pointermove", (e) => {
+      const event = e as PointerEvent;
       if (start === null) return;
-      this.drawBrush(start, clampX(svgPoint(svg, e as PointerEvent).x));
+      const x = clampX(svgPoint(svg, event).x);
+      if (!dragging) {
+        if (Math.abs(x - start) < 3) return;
+        // Capture only once this is a drag: capturing on pointerdown sent every click to the
+        // SVG instead of the mark under the pointer, so marks on these charts could not be
+        // clicked (F1).
+        dragging = true;
+        svg.setPointerCapture(event.pointerId);
+      }
+      this.drawBrush(start, x);
     });
     this.listen(svg, "pointerup", (e) => {
       if (start === null) return;
-      const end = clampX(svgPoint(svg, e as PointerEvent).x);
       const from = start;
       start = null;
-      if (Math.abs(end - from) < 3) return; // A click, not a drag: marks handle it.
+      if (!dragging) return; // A click: the mark under the pointer, or the plot, handles it.
+      dragging = false;
+      dragged = true;
+      const end = clampX(svgPoint(svg, e as PointerEvent).x);
       this.drawBrush(from, end);
       this.emitBrush([invert(scale, Math.min(from, end)), invert(scale, Math.max(from, end))]);
+    });
+    // A range without dragging (WCAG 2.2 SC 2.5.7, A4): click the plot once for one end and again
+    // for the other. Clicks on marks filter instead.
+    this.listen(svg, "click", (e) => {
+      const event = e as MouseEvent;
+      if (dragged) {
+        dragged = false;
+        return;
+      }
+      const target = event.target as Element | null;
+      if (target?.closest(`${MARK}, .abscissa-hit`)) return;
+      const x = svgPoint(svg, event).x;
+      if (x < Math.min(r0, r1) || x > Math.max(r0, r1)) return;
+      if (this.rangeStart === null) {
+        this.rangeStart = x;
+        this.drawBrush(x, x + 1);
+        this.announce("Range start set; click again to set the end");
+        return;
+      }
+      const from = this.rangeStart;
+      this.rangeStart = null;
+      this.drawBrush(from, x);
+      this.emitBrush([invert(scale, Math.min(from, x)), invert(scale, Math.max(from, x))]);
     });
   }
 
@@ -329,6 +538,7 @@ class Chart implements EnhancedChart {
   private showTip(mark: SVGGraphicsElement): void {
     const tip = this.tooltip;
     if (!tip) return;
+    clearTimeout(this.hideTimer);
     tip.textContent = label(mark);
     tip.hidden = false;
     const box = mark.getBoundingClientRect();
@@ -343,7 +553,14 @@ class Chart implements EnhancedChart {
   }
 
   private hideTip(): void {
+    clearTimeout(this.hideTimer);
     if (this.tooltip) this.tooltip.hidden = true;
+  }
+
+  /** Hides the tooltip shortly, unless the pointer reaches it first. */
+  private scheduleHide(): void {
+    clearTimeout(this.hideTimer);
+    this.hideTimer = setTimeout(() => this.hideTip(), 300);
   }
 
   private onKey(event: KeyboardEvent): void {
@@ -371,6 +588,8 @@ class Chart implements EnhancedChart {
         event.preventDefault();
         return;
       case "Escape":
+        // Dismisses the tooltip (WCAG 1.4.13, F6) and clears the filter and range.
+        this.hideTip();
         this.clearAll(true);
         return;
       default:
@@ -386,24 +605,22 @@ class Chart implements EnhancedChart {
     if (this.anchorIndex !== null) this.brushBetween(this.anchorIndex, next);
   }
 
+  private columnOf(index: number): number | null {
+    const mark = this.marks[index];
+    return mark ? place(mark).column : null;
+  }
+
   /** The first mark in the next or previous column, so arrows step category by category. */
   private column(step: 1 | -1): number {
-    const here = this.marks[this.focusIndex];
-    if (!here) return this.focusIndex;
-    const x = center(here).x;
+    const here = this.columnOf(this.focusIndex);
+    if (here === null) return this.focusIndex;
     for (let i = this.focusIndex + step; i >= 0 && i < this.marks.length; i += step) {
-      const mark = this.marks[i];
-      if (mark && Math.abs(center(mark).x - x) > 0.5) {
+      const col = this.columnOf(i);
+      if (col !== null && col !== here) {
         if (step === 1) return i;
         // Moving left lands on the bottom of the column, as moving right does.
-        const cx = center(mark).x;
         let first = i;
-        while (
-          first > 0 &&
-          Math.abs(center(this.marks[first - 1] as SVGGraphicsElement).x - cx) <= 0.5
-        ) {
-          first -= 1;
-        }
+        while (first > 0 && this.columnOf(first - 1) === col) first -= 1;
         return first;
       }
     }
@@ -412,12 +629,9 @@ class Chart implements EnhancedChart {
 
   /** The mark above or below in the same column (a stack), or the current one at its end. */
   private stack(step: 1 | -1): number {
-    const here = this.marks[this.focusIndex];
-    const there = this.marks[this.focusIndex + step];
-    if (!here || !there) return this.focusIndex;
-    return Math.abs(center(there).x - center(here).x) <= 0.5
-      ? this.focusIndex + step
-      : this.focusIndex;
+    const here = this.columnOf(this.focusIndex);
+    const there = this.columnOf(this.focusIndex + step);
+    return here !== null && there === here ? this.focusIndex + step : this.focusIndex;
   }
 
   private moveFocus(index: number, focus = true): void {
@@ -518,6 +732,7 @@ class Chart implements EnhancedChart {
   }
 
   private clearAll(notify: boolean): void {
+    this.rangeStart = null;
     if (this.selected) this.select(null, notify);
     if (this.brushRect && this.brushRect.style.display !== "none") {
       if (notify) this.emitBrush(null);
@@ -527,12 +742,14 @@ class Chart implements EnhancedChart {
   }
 
   update(markup: string): void {
-    const template = document.createElement("template");
-    template.innerHTML = markup.trim();
-    const incoming = template.content.firstElementChild;
-    if (!(incoming instanceof HTMLElement) || !incoming.matches("figure.abscissa")) {
+    // DOMParser builds an inert document: nothing in it loads or runs while it is checked.
+    const parsed = new DOMParser().parseFromString(markup.trim(), "text/html");
+    const candidate = parsed.body.firstElementChild;
+    if (!candidate?.matches("figure.abscissa")) {
       throw new Error("update() needs the markup of one Abscissa figure");
     }
+    sanitize(candidate);
+    const incoming = document.importNode(candidate, true);
     const before = new Map<string, Record<string, string>>();
     for (const mark of this.figure.querySelectorAll(MARK)) {
       const attrs: Record<string, string> = {};
@@ -597,6 +814,10 @@ class Chart implements EnhancedChart {
 
   private teardown(): void {
     for (const undo of this.cleanup.splice(0)) undo();
+    clearTimeout(this.hideTimer);
+    this.ring?.remove();
+    this.ring = null;
+    this.rangeStart = null;
     this.tooltip?.remove();
     this.tooltip = null;
     this.live?.remove();
@@ -647,7 +868,8 @@ const enhanced = new WeakMap<HTMLElement, Chart>();
 
 /**
  * Enhances every Abscissa figure under `root` (the whole document by default) and returns them.
- * Calling it again is safe: a figure is enhanced once.
+ * Calling it again is safe: a figure is enhanced once, and calling it with different options
+ * re-applies the chart with the new ones (F18).
  *
  * @example
  * import { enhance } from "abscissa/enhance";
@@ -668,7 +890,8 @@ export function enhance(
   if (root instanceof HTMLElement && root.matches("figure.abscissa")) figures.unshift(root);
   return figures.map((figure) => {
     const existing = enhanced.get(figure);
-    if (existing) return existing;
+    if (existing && JSON.stringify(existing.options) === JSON.stringify(resolved)) return existing;
+    existing?.destroy();
     const chart = new Chart(figure, resolved);
     enhanced.set(figure, chart);
     return chart;

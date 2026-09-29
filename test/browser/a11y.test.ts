@@ -40,6 +40,8 @@ async function audit(page: Page): Promise<Violation[]> {
         type: "tag",
         values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"],
       },
+      // axe ships target-size (WCAG 2.2 SC 2.5.8) disabled; tags alone do not turn it on (A6).
+      rules: { "target-size": { enabled: true } },
     });
     return result.violations.map((v) => ({
       id: v.id,
