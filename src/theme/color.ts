@@ -186,7 +186,14 @@ export function colorDifference(a: string, b: string, vision?: ColorVision): num
   return deltaE2000(rgbToLab(see(a)), rgbToLab(see(b)));
 }
 
-/** Of two candidate colors, the one with the higher contrast against `background`. */
-export function mostReadable(background: string, a: HexColor, b: HexColor): HexColor {
-  return contrastRatio(background, a) >= contrastRatio(background, b) ? a : b;
+/**
+ * The color for text printed on a mark: the scheme's text or background color when either reaches
+ * 4.5:1 on the mark (the better of the two), otherwise black or white, one of which always does
+ * (F8).
+ */
+export function labelColor(fill: string, text: HexColor, background: HexColor): HexColor {
+  const best = (a: HexColor, b: HexColor): HexColor =>
+    contrastRatio(fill, a) >= contrastRatio(fill, b) ? a : b;
+  const themed = best(text, background);
+  return contrastRatio(fill, themed) >= 4.5 ? themed : best("#000000", "#ffffff");
 }
