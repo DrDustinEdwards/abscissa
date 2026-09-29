@@ -121,6 +121,7 @@ function page(theme: Theme, css: string, examples: readonly Example[], nav: stri
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Abscissa gallery: ${escapeText(theme.name)} theme</title>
 <meta name="description" content="Every Abscissa chart, server-rendered, in the ${escapeText(theme.name)} theme.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="${css}">
 </head>
 <body>
@@ -182,6 +183,7 @@ writeFileSync(
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Not found: Abscissa gallery</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/index.css">
 </head>
 <body>
@@ -194,7 +196,9 @@ writeFileSync(
 `,
 );
 copyFileSync(join(root, "dist", "enhance", "index.js"), join(outDir, "enhance.js"));
-// Served as files beside the pages: the gallery script, and the security and caching headers.
+// Served as files beside the pages: the gallery script, the security and caching headers, and
+// the icon.
 copyFileSync(join(root, "site", "gallery.js"), join(outDir, "gallery.js"));
 copyFileSync(join(root, "site", "_headers"), join(outDir, "_headers"));
+copyFileSync(join(root, "site", "favicon.svg"), join(outDir, "favicon.svg"));
 console.log(`gallery: ${examples.length} examples, ${pages.length} themes -> ${outDir}`);

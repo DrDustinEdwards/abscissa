@@ -29,7 +29,7 @@ zone already is.
 
    | Header | Value | Why |
    |---|---|---|
-   | Content-Security-Policy | `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'` | Nothing loads unless listed; scripts only from the site itself. |
+   | Content-Security-Policy | `default-src 'none'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://cloudflareinsights.com; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'` | Nothing loads unless listed; scripts only from the site itself and Cloudflare Web Analytics. |
    | X-Content-Type-Options | `nosniff` | Files are only what their type says. |
    | Referrer-Policy | `strict-origin-when-cross-origin` | Other sites see only the origin. |
    | Cache-Control | `public, max-age=300, must-revalidate` | Five minutes: file names are not hashed, so a longer cache would serve stale pages and scripts after a deploy. |
@@ -40,7 +40,16 @@ zone already is.
    attributes when a chart passes it style options. A policy without
    `'unsafe-inline'` blocks every `style` attribute, which would silently drop
    those colors. The current gallery examples happen to use none, but the
-   policy is written for the charts the package can produce. Inline styles cannot run
+   policy is written for the charts the package can produce.
+
+   **Why Cloudflare Web Analytics is allowed.** The dustinedwards.info zone
+   has Web Analytics with automatic injection on, so Cloudflare adds its
+   beacon script to every page it serves. The first deploy, with scripts
+   limited to `'self'`, blocked it: an error in every visitor's console and
+   no analytics for the gallery. The policy therefore allows exactly the
+   beacon's script origin and the address it reports to. If Dustin would
+   rather the gallery had no analytics, excluding this hostname in the zone's
+   Web Analytics settings lets both allowances be removed. Inline styles cannot run
    code, and scripts stay limited to `'self'`, so the risk this admits is
    small. Sites embedding Abscissa charts need the same allowance for styles.
 4. **Deploys.** `npm run deploy:gallery` builds the package and the gallery

@@ -12,6 +12,7 @@ change the public API; every such change is listed here.
 - The gallery is hosted at https://abscissa.dustinedwards.info: an
   assets-only Cloudflare Worker with a Content-Security-Policy, a 404 page,
   `npm run deploy:gallery`, and a workflow that deploys on pushes to `main`.
+  Its policy allows Cloudflare Web Analytics, which the zone injects.
 
 ### Changed
 
