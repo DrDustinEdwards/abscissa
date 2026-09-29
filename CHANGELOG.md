@@ -7,6 +7,19 @@ change the public API; every such change is listed here.
 
 ## [Unreleased]
 
+## [0.1.0-alpha.7] - 2026-09-29
+
+### Changed
+
+- Renamed from Abscissa to Enarratio. The npm package is now `enarratio`;
+  `abscissa` will be deprecated with a pointer here. Enarratio is the Roman
+  grammarian's reading aloud and explanation of a text, which is what the
+  toolkit does for a figure: it renders it on the server and explains it to
+  people, screen readers and AI agents. This release is the alpha.6 code under
+  the new package name, published first to reserve it; the names inside the
+  code (the `data-abscissa-*` attributes, CSS classes and custom properties)
+  and the rest of the repository are renamed in the next release.
+
 ## [0.1.0-alpha.6] - 2026-09-28
 
 Fixes for the findings of two independent AI reviews of pull request #1
