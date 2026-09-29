@@ -1,6 +1,6 @@
 # 0008. Hosting the gallery, and its Content-Security-Policy
 
-Status: accepted, 2026-09-28.
+Status: accepted, 2026-09-28. Amended by [0009](0009-review-fixes.md) after the two reviews.
 
 ## Decision
 
@@ -10,9 +10,10 @@ zone already is.
 
 **Implementation choices.**
 
-1. **An assets-only Worker.** `wrangler.jsonc` names a Worker,
+1. **An assets Worker.** (Since 0009, a few lines of Worker code in
+   `worker/index.ts` run first, only to redirect `http:` to `https:`.) `wrangler.jsonc` names a Worker,
    `abscissa-gallery`, that serves `site/dist` (built by `npm run gallery`) on
-   the custom domain, with no Worker code, no `workers.dev` address and no
+   the custom domain, with no `workers.dev` address and no
    preview URLs. A missing path gets `404.html`. The file carries no account
    id, because the repository is public; wrangler takes it from the login or
    from `CLOUDFLARE_ACCOUNT_ID`. Pages are served at clean addresses (`/` and
@@ -29,12 +30,14 @@ zone already is.
 
    | Header | Value | Why |
    |---|---|---|
-   | Content-Security-Policy | `default-src 'none'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://cloudflareinsights.com; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'` | Nothing loads unless listed; scripts only from the site itself and Cloudflare Web Analytics. |
+   | Content-Security-Policy | `default-src 'none'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://cloudflareinsights.com; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'` | Nothing loads unless listed; scripts only from the site itself and Cloudflare Web Analytics; style sheets only from the site, inline styles only as attributes. |
    | X-Content-Type-Options | `nosniff` | Files are only what their type says. |
    | Referrer-Policy | `strict-origin-when-cross-origin` | Other sites see only the origin. |
    | Cache-Control | `public, max-age=300, must-revalidate` | Five minutes: file names are not hashed, so a longer cache would serve stale pages and scripts after a deploy. |
+   | Strict-Transport-Security | `max-age=31536000` | Browsers use HTTPS for a year after a visit. No `includeSubDomains`: not every dustinedwards.info subdomain is known to be HTTPS-only. |
+   | Permissions-Policy | `accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()` | Device features the gallery never uses are off. |
 
-   **Why `style-src` allows `'unsafe-inline'`.** A chart given color
+   **Why `style-src-attr` allows `'unsafe-inline'`.** A chart given color
    overrides (`colors`, or `color` on a primitive) sets its palette slots in a
    `style` attribute on the figure or SVG, and Observable Plot writes `style`
    attributes when a chart passes it style options. A policy without

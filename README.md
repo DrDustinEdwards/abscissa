@@ -17,8 +17,10 @@ heatmaps, networks, sparklines, progress rings and uptime strips) and the
 figures a laboratory needs, starting with antibody titer plots and genome
 tracks. Charts are built on [Observable Plot](https://observablehq.com/plot/)
 and [d3-force](https://d3js.org/d3-force), and return plain HTML strings, so
-Abscissa works with any server framework and any JavaScript runtime: Node.js,
-Cloudflare Workers, Deno and Bun.
+Abscissa works with any server framework. It is tested on Node.js 20, 22 and 24
+and runs on Cloudflare Workers (the gallery's first site renders charts in a
+Worker); Deno and Bun should work, since it uses only standard modules, but are
+not yet tested.
 
 **Gallery:** every chart, in two themes, light and dark:
 [abscissa.dustinedwards.info](https://abscissa.dustinedwards.info)
@@ -93,14 +95,17 @@ included once per page, whatever the number of charts.
 ```ts
 const html = `<!doctype html>
 <html lang="en">
-<head><style>${stylesheet(defaultTheme)}</style></head>
+<head>
+<meta name="color-scheme" content="light dark">
+<style>${stylesheet(defaultTheme)}</style>
+</head>
 <body>${chart}</body>
 </html>`;
 ```
 
 That page is complete: the chart, its legend and a data table render with
-scripts off, and follow the reader's light or dark preference when the page
-sets `color-scheme: light dark`.
+scripts off, and the `color-scheme` meta tag makes them follow the reader's
+light or dark preference.
 
 **3. Optionally, enhance it in the browser.**
 
@@ -119,6 +124,16 @@ Enter or a click filters by the bar's series (and fires `abscissa:select`),
 legend entries become toggle buttons, and a drag or Shift with the arrow keys
 picks a range on time axes (`abscissa:brush`). Escape clears. Everything is
 announced to screen readers and motion stops under `prefers-reduced-motion`.
+
+Without a bundler, serve `node_modules/abscissa/dist/enhance/index.js` as a
+file (it has no imports of its own) and load it with
+`<script type="module">import { enhance } from "/enhance.js"; enhance();</script>`,
+or from a CDN such as
+`https://cdn.jsdelivr.net/npm/abscissa@0.1.0-alpha.6/dist/enhance/index.js`.
+
+To redraw a chart in place, pass new server markup to `update()` on the chart
+`enhance()` returns. That markup should come from Abscissa: it is sanitized
+before use, but it is not a way to insert arbitrary HTML.
 
 The [examples](examples/) directory holds a runnable file for every chart in
 the gallery. Each exports the chart's HTML, and `npm run gallery` renders them

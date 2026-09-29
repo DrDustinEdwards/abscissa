@@ -6,35 +6,54 @@ updated whenever AI tools are used on the project.
 
 ## Tools and models
 
-| Tool | Model | Period |
-|---|---|---|
-| Claude Code (Anthropic's command-line coding agent) | Claude Opus, an Anthropic large language model | From 2026-09-28 |
+| Tool | Model (id) | Maker | Used for |
+|---|---|---|---|
+| Claude Code (Anthropic's command-line coding agent) | Claude Opus 5.5 (`claude-opus-5-5`) | Anthropic | Writing the code, tests, documentation, design records, gallery and the paper draft; fixing review findings; one of the two reviews |
+| A separate review session | Fable 5.1 (`claude-fable-5-1`) | Anthropic | One of the two reviews |
 
-## Who did what
+## What happened, in order
 
-**Dustin Edwards (human author)** defined the project: the problem, its
-audiences and the requirements, in a written brief dated 2026-09-28. The brief
-set the purpose (one shared, accessible, server-rendered charts package for
-his sites, and research software for scientific figures), the technical
-foundation (Observable Plot on the server, D3 for networks), the chart types
-and the order of the scientific ones, the enhancement layer's features, the
-theming and color-checking requirements, the quality bar (strict TypeScript,
-the test suites, documentation, open-source hygiene, JOSS readiness), the
-licensing, and the instruction not to migrate existing sites yet. The design
-records mark these as "author's decisions". He reviews the code and the
-records before release, and has the first version reviewed independently
-before the repository is made public.
+1. **2026-09-28: the brief.** Dustin Edwards posted a written brief with his
+   design decisions: the purpose (one shared, accessible, server-rendered
+   charts package for his sites, and research software for scientific
+   figures), the technical foundation (Observable Plot on the server, D3 for
+   networks), the chart types and the order of the scientific ones, the
+   enhancement layer's features, the theming and color-checking requirements,
+   the quality bar (strict TypeScript, the test suites, documentation,
+   open-source hygiene, JOSS readiness), the licensing, and the instruction
+   not to migrate existing sites yet. The design records mark these as
+   "author's decisions".
+2. **2026-09-28: the first version.** Claude Opus 5.5, run through Claude
+   Code, wrote the code, tests, documentation, design records and gallery in a
+   private repository, directed by that brief and by Dustin's follow-up
+   decisions (the dustinedwards.info theme colors, keeping web analytics on
+   the gallery, the code of conduct contact address, and hosting the gallery
+   on Cloudflare). It also audited the chart code of the five existing sites
+   and proposed the "implementation choices" recorded in `docs/design/`.
+3. **2026-09-28: the first customer.** The interactive CV on
+   dustinedwards.info fed back two rounds of API issues, fixed in
+   0.1.0-alpha.4 and 0.1.0-alpha.5.
+4. **2026-09-28: publication.** Dustin published 0.1.0-alpha.0 to npm at
+   22:45 UTC and 0.1.0-alpha.5 at 23:15 UTC. The history was rewritten to
+   the author's GitHub noreply address and the repository moved to a new,
+   public repository the same day.
+5. **After publication: two independent AI reviews.** With the repository
+   already public and those versions already on npm, pull request #1 was
+   reviewed at commit d4fe7b6 by two AI models, separately: Fable 5.1
+   (`claude-fable-5-1`, Anthropic; findings A1 to A17) and Claude Opus 5.5
+   (`claude-opus-5-5`, Anthropic; findings F1 to F23). The second review was
+   by Claude Opus 5.5 because Grok Build, which had been planned, was
+   unavailable. These are AI reviews, not human peer review.
+6. **0.1.0-alpha.6: the review fixes.** Claude Opus 5.5, through Claude Code,
+   fixed the findings in the order Dustin set, each with a regression test
+   named for its finding. Three JOSS findings (F21, A17 and F23: development
+   history, and the paper's state of the field and impact) are deferred.
 
-**Claude Opus, via Claude Code**, working from that brief:
+## Who decided what
 
-- audited the chart code of the five existing sites and summarized it;
-- proposed the implementation choices recorded in `docs/design/` as
-  "implementation choices" (for example, returning HTML strings, fixed-size
-  palettes, CSS custom properties with `light-dark()`, the keyboard model);
-- wrote the source code in `src/`, the tests in `test/`, the examples, the
-  gallery and screenshot scripts, the CI workflows, and the first drafts of
-  the documentation, the design records, this record and the paper;
-- ran the tests, audits and builds and fixed what they found.
+Dustin Edwards made the design decisions: those in the brief, and the
+follow-ups listed above. The AI model proposed and wrote everything else, and
+the design records distinguish the two.
 
 ## How AI output was checked
 
@@ -43,10 +62,12 @@ before the repository is made public.
   CIEDE2000 test data of Sharma, Wu and Dalal), and otherwise against
   properties the model must have (grays unchanged by color vision
   simulation), not only against the implementation's own output.
-- Accessibility is checked by axe-core in a real browser, not asserted.
-- Rendered output is stored and reviewed as a diff when it changes.
-- The human author reviews all changes before release, and the first version
-  is reviewed independently before publication.
+- Accessibility is checked by axe-core in a real browser (including target
+  size), and by browser tests of keyboard, pointer and tooltip behavior.
+- Rendered output is stored and reviewed as a diff when it changes; hostile
+  text is fed through every public function and the result parsed.
+- The two AI reviews above found problems the tests had missed; each fix has a
+  regression test named for its finding.
 
 ## What was not done with AI
 

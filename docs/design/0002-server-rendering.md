@@ -1,6 +1,6 @@
 # 0002. Charts are drawn on the server, as HTML strings
 
-Status: accepted, 2026-09-28.
+Status: accepted, 2026-09-28. Amended by [0009](0009-review-fixes.md) after the two reviews.
 
 ## Decision
 

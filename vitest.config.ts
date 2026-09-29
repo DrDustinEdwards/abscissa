@@ -14,5 +14,7 @@ export default defineConfig({
   test: {
     include: ["test/**/*.test.ts"],
     exclude: ["test/browser/**"],
+    // A cold first import of Observable Plot can take several seconds on a slow runner (A15).
+    testTimeout: 30_000,
   },
 });

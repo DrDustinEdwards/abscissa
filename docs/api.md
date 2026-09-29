@@ -8,7 +8,13 @@ Every chart function takes one options object and returns a string. Options
 are checked when the chart is drawn, and anything that would draw a wrong
 chart (a missing field, a non-finite number, an unknown series in `colors`,
 more series than the palette has colors) throws an `Error` naming the chart,
-the row and the field. Nothing is silently dropped or defaulted.
+the row and the field. Nothing is silently dropped or defaulted: empty data,
+an all-empty series, a non-positive `width` or `height`, and a value a log
+axis cannot show all throw.
+
+Every caller-supplied string is escaped: data values, labels, titles, captions,
+`alt`, ids and formatter output reach the page as text, never as markup (a test
+feeds hostile text through every function and parses the result).
 
 The TypeScript declarations carry the same documentation, field by field, and
 show in any editor. This page is the map; a test fails if an export is missing
@@ -26,7 +32,7 @@ Every chart (not the primitives) accepts these.
 | `title` | `string` | Visible title above the chart. |
 | `caption` | `string` | Visible caption below: method, source, caveats. |
 | `id` | `string` | The figure's `id`, reported as `chartId` in events. |
-| `width`, `height` | `number` | Drawing size in CSS pixels; the SVG scales down to fit. |
+| `width`, `height` | `number` | Drawing size in CSS pixels, positive and finite. Drawings 480 pixels or wider keep at least 30rem on narrow screens and scroll sideways inside the figure, so their text stays readable. |
 | `dataTable` | `"details"` or `"visually-hidden"` | How the always-present data table is shown. Default `"details"`. |
 
 A chart returns:
@@ -35,7 +41,9 @@ A chart returns:
 <figure class="abscissa" data-abscissa="bar" id="...">
   <p class="abscissa-title">...</p>
   <ul class="abscissa-legend">...</ul>
-  <svg role="img" aria-label="{alt}">... one keyed element per datum ...</svg>
+  <div class="abscissa-frame">
+    <svg role="img" aria-label="{alt}">... one keyed element per datum ...</svg>
+  </div>
   <figcaption class="abscissa-caption">...</figcaption>
   <details class="abscissa-data"><summary>Data table</summary><table>...</table></details>
 </figure>
@@ -45,7 +53,15 @@ A chart returns:
 
 A color override for one series: any CSS color (`"#8a4a1b"`,
 `"var(--brand)"`), or `{ light, dark }`, rendered with CSS `light-dark()`.
-Given in a chart's `colors` option, keyed by series name.
+Given in a chart's `colors` option, keyed by series name. A chart with no
+`series` field has one series whose name is its value label: `yLabel` (or
+"Count" for counted bars, "Value" when the label is hidden) for bar, line and
+area charts; "Points" for a scatter plot; "Samples" for a titer plot with
+`colorByGroup: false`.
+
+Each drawn datum carries `data-abscissa-key`, which is opaque (compare keys,
+never parse them), and `data-abscissa-col` and `data-abscissa-row`, its place
+in keyboard reading order.
 
 ## Charts
 
@@ -71,6 +87,11 @@ one row per item (a CV entry, a case) is enough.
   allowed.
 - `maxXTicks`: the most category labels to print; with more categories, every
   nth label is printed from the first.
+- `directLabels`: print each series' name inside the stacked segments it fits
+  in, so series are told apart by text as well as color. Stacked layout only.
+
+Links given by `href` must be relative or `http(s)`; a `//host` link, or any
+other scheme, throws. Count axes end at their last whole-number tick.
 
 ### `lineChart`
 
@@ -85,14 +106,26 @@ must be zero or more.
 
 ### `SeriesChartOptions`
 
-Options shared by line and area charts: `data`, `x` (Date, ISO string, epoch
-milliseconds or number), `y`, `series`, `xType` (`"time"` or `"linear"`,
-inferred), `seriesDomain`, `colors`, `xLabel`, `yLabel`, `formatValue`,
-`formatX`, `references`, `markers`.
+Options shared by line and area charts: `data`, `x`, `y`, `series`, `xType`
+(`"time"` or `"linear"`), `seriesDomain`, `colors`, `xLabel`, `yLabel`,
+`formatValue`, `formatX`, `references`, `markers`.
+
+- `x` holds Dates or ISO 8601 strings (time) or numbers (linear). `xType` is
+  inferred from the first row, so epoch milliseconds, being numbers, need
+  `xType: "time"`.
+- Dates are instants in UTC, except that when every Date falls at local
+  midnight they are read as calendar dates, so `new Date(2025, 0, 6)` is 6
+  January wherever the server runs.
+- Rows are told apart by the x value itself, so hourly and finer data works;
+  its default label adds the UTC time (`2026-01-01 14:00 UTC`). Numbers that
+  look like years (whole, 1000 to 2999) print without a thousands separator.
+- In an area chart a missing value is a gap: no point, no hover text, a blank
+  table cell.
 
 ### `LineChartOptions`
 
-`SeriesChartOptions` plus `points`, `directLabels`, `yType` and `zero`.
+`SeriesChartOptions` plus `points`, `directLabels`, `yType` and `zero`. With
+`yType: "log"`, a value of zero or less throws.
 
 ### `ReferenceLine`
 
@@ -125,7 +158,8 @@ in cells in a readable color, and dashed outlines for empty cells.
 
 `data`, `x`, `y`, `value`, `xDomain`, `yDomain`, `thresholds` (four ascending
 values; default equal intervals), `cellLabels`, `xLabel`, `yLabel`,
-`valueLabel`, `formatValue`.
+`valueLabel`, `formatValue`. Once enhanced, a click on a cell filters by its
+row (the `y` field), and arrow keys move across columns and down rows.
 
 ### `networkChart`
 
@@ -197,7 +231,9 @@ a single value.
 ## Primitives
 
 Primitives return an `<svg class="abscissa">` sized for inline use, named by a
-generated or given text alternative. They use the same theme.
+text alternative. They use the same theme. As on charts, `alt` is the text
+alternative; `label` names what is measured and is used to generate one when
+`alt` is not given. One of the two is required.
 
 ### `sparkline`
 
@@ -215,8 +251,9 @@ alternative is generated from the data unless `alt` is given.
 
 ### `ProgressRingOptions`
 
-`value`, `max` (default 1), `label` (required), `size`, `thickness`,
-`showValue`, `color`.
+`value`, `max` (default 1), `label` or `alt`, `size`, `thickness`,
+`showValue`, `color`. A value past `max` fills the ring and prints its real
+percentage, and the text alternative says it is more than the total.
 
 ### `uptimeStrip`
 
@@ -225,7 +262,8 @@ status is carried by tick height and outline as well as color.
 
 ### `UptimeStripOptions`
 
-`slots`, `label` (required), `width`, `height`.
+`slots`, `label` or `alt`, `width`, `height`. An unknown status (including
+names like `"constructor"` from JSON) throws.
 
 ### `UptimeSlot`
 
@@ -271,17 +309,24 @@ Exactly five `HexColor`s, from least to most.
 ### `defineTheme`
 
 `defineTheme(theme: Theme): Theme`. Validates a theme built at run time
-(from JSON, say) and returns it. Throws naming the first bad field.
+(from JSON, say) and returns it. Throws naming the first bad field. The name
+and fonts may not contain `<`, `>`, `{`, `}`, `;`, a backslash, `/*` or `*/`,
+since they are written into CSS.
 
 ### `stylesheet`
 
 `stylesheet(theme: Theme, options?: StylesheetOptions): string`. The CSS a
-page includes once. Light and dark follow the page's `color-scheme`.
+page includes once. Light and dark follow the page's `color-scheme`. It
+validates the theme with `defineTheme` first. Labels printed on marks take the
+scheme's text or background color when it reaches 4.5:1, otherwise black or
+white.
 
 ### `StylesheetOptions`
 
 `{ colorScheme?: { dark?: string; light?: string } }`: selectors for sites
-that switch schemes with an attribute, e.g. `'[data-theme="dark"]'`.
+that switch schemes with an attribute, e.g. `'[data-theme="dark"]'`. They are
+the page's own and trusted, but may not contain the characters `defineTheme`
+refuses.
 
 ### `defaultTheme`
 
@@ -296,9 +341,12 @@ The theme of dustinedwards.info, and a worked example of a site theme.
 ### `checkTheme`
 
 `checkTheme(theme: Theme, thresholds?: Partial<CheckThresholds>): CheckReport`.
-Measures text and mark contrast (WCAG 2.2), the order of the sequential ramp,
-and the difference between every pair of series colors with typical vision and
+Measures text and mark contrast (WCAG 2.2), the contrast of labels printed on
+every series and ramp color, the order of the sequential ramp, and the
+difference between every pair of series colors with typical vision and
 simulated protanopia, deuteranopia and tritanopia. Reports rather than throws.
+The focus ring needs no check against series colors: it is drawn in two tones,
+background inside focus color, so one always contrasts with its neighbor.
 
 ### `CheckReport`
 
@@ -345,7 +393,8 @@ Oliveira and Fernandes (2009), at full severity.
 
 `enhance(root?: ParentNode, options?: EnhanceOptions): EnhancedChart[]`.
 Enhances every `figure.abscissa` under `root` (default `document`). Safe to
-call again: a figure is enhanced once.
+call again: a figure is enhanced once, and calling again with different options
+re-applies them.
 
 ### `EnhanceOptions`
 
@@ -353,7 +402,7 @@ call again: a figure is enhanced once.
 
 ### `EnhancedChart`
 
-`{ figure; update(markup); setFilter(filter); clear(); destroy() }`.
+`{ figure; options; update(markup); setFilter(filter); clear(); destroy() }`.
 
 - `update` swaps in new server markup for the same chart, animating marks
   that share a key. It keeps the current filter, and keeps the tab stop (and
@@ -366,6 +415,10 @@ call again: a figure is enhanced once.
   that series and presses its legend entry, even on a chart whose clicks
   filter by x.
 - `clear()` removes the filter and range.
+- The markup given to `update` should come from Abscissa. It is parsed inertly
+  and sanitized first: only elements and attributes Abscissa emits survive,
+  with event handlers, scripts, unsafe links and non-custom-property styles
+  removed.
 - `destroy()` restores the server markup.
 
 Calls the page makes (`update`, `setFilter`, `clear`) fire no events, since
@@ -393,4 +446,13 @@ when cleared.
 | Home, End | First or last mark. |
 | Enter, Space | Filter by the focused mark; again to clear. |
 | Shift with arrows | Extend a range on a continuous axis. |
-| Escape | Clear the filter and the range. |
+| Escape | Hide the tooltip, and clear the filter and the range. |
+
+### Pointer
+
+- Hover or focus shows the mark's details in a tooltip, which stays while the
+  pointer moves onto it.
+- Click a mark (or anywhere in its 24 CSS pixel target) to filter; click again
+  to clear.
+- On a continuous x axis, drag to pick a range, or click the plot once for one
+  end and again for the other: dragging is never the only way.

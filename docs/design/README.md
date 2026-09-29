@@ -11,8 +11,9 @@ Each record says where a decision came from:
 - **Author's decision**: set by Dustin Edwards in the project brief of
   2026-09-28, quoted where it matters.
 - **Implementation choice**: made while building the first version to carry
-  out an author's decision, reviewed by the author before release. These are
-  the ones most open to change.
+  out an author's decision, by the AI model that wrote the code (see
+  [docs/AI_USAGE.md](../AI_USAGE.md)). These are the ones most open to change,
+  and the ones the two AI reviews of 0.1.0-alpha.5 tested hardest.
 
 | Record | Subject |
 |---|---|
@@ -24,6 +25,7 @@ Each record says where a decision came from:
 | [0006](0006-api-and-quality.md) | API shape, errors, dependencies and tests |
 | [0007](0007-site-migrations.md) | What moving each existing site onto Abscissa involves |
 | [0008](0008-gallery-hosting.md) | Hosting the gallery, and its Content-Security-Policy |
+| [0009](0009-review-fixes.md) | What the two reviews changed, and why |
 
 A new record is added when a decision changes; an old one is not rewritten
 except to link to the record that supersedes it.

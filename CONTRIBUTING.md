@@ -42,8 +42,12 @@ record in `docs/design/`.
    If you changed what a chart looks like on purpose, update the stored
    output with `npx vitest run -u` (markup) and
    `UPDATE_SNAPSHOTS=1 npm run test:browser` (images), and check the diff.
-   Visual images are compared per platform; CI's Linux images come from the
-   "Visual snapshots" workflow, and a maintainer commits them after review.
+   Visual images are compared per platform, and only Linux images (CI's
+   platform) are committed, so on Windows or macOS the visual comparison is
+   skipped unless you create local images with `UPDATE_SNAPSHOTS=1`. CI's
+   Linux images come from a failed CI run's `visual-output` artifact or the
+   "Visual snapshots" workflow, and a maintainer commits them after looking at
+   each one.
 5. Open a pull request. The template lists what reviewers look for. CI must
    pass.
 

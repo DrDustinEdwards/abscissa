@@ -7,17 +7,92 @@ change the public API; every such change is listed here.
 
 ## [Unreleased]
 
+## [0.1.0-alpha.6] - 2026-09-28
+
+Fixes for the findings of two independent AI reviews of pull request #1
+(Fable 5.1: A1 to A17; Claude Opus 5.5: F1 to F23). Each fix has a
+regression test named for its finding; design record 0009 explains the
+decisions. F21, A17 and F23 (JOSS history and the paper) are deferred.
+
 ### Added
 
-- The gallery is hosted at https://abscissa.dustinedwards.info: an
-  assets-only Cloudflare Worker with a Content-Security-Policy, a 404 page,
-  `npm run deploy:gallery`, and a workflow that deploys on pushes to `main`.
-  Its policy allows Cloudflare Web Analytics, which the zone injects.
+- `barChart` `directLabels`: series names inside the stacked segments they
+  fit in (A1).
+- `EnhancedChart.options`: the options a chart was enhanced with (F18).
+- `alt` on `progressRing` and `uptimeStrip`, as on every chart and on
+  `sparkline`; `label` becomes optional when `alt` is given (F18).
+- A range can be picked by clicking the plot twice, without dragging (A4).
+- Invisible 24 CSS pixel pointer targets around small marks (A5).
+- `checkTheme` measures the contrast of labels printed on every series and
+  ramp color (`label-contrast`) (F8).
+- The gallery: an http-to-https redirect in its own Worker,
+  `Strict-Transport-Security`, `Permissions-Policy`, and a split `style-src`
+  (A14, F16). Hosted at https://abscissa.dustinedwards.info, with a
+  Content-Security-Policy, a 404 page, `npm run deploy:gallery`, and a
+  workflow that deploys on pushes to `main`. Its policy allows Cloudflare Web
+  Analytics, which the zone injects.
+- CI runs the unit tests on Node.js 20, 22 and 24 (A16).
 
 ### Changed
 
-- Gallery pages link their stylesheet and script as files instead of
-  carrying them inline.
+- The default theme's series palette: series 1 to 6 now differ by at least 10
+  CIEDE2000 units under every simulated color vision, in light and dark (A1).
+- Mark keys are JSON arrays (`["2022","Talks"]`) and are opaque (A9, F14).
+- Marks carry `data-abscissa-col` and `data-abscissa-row`, and keyboard order
+  follows them rather than SVG geometry (F9).
+- Labels on marks use black or white when neither the scheme's text nor its
+  background color reaches 4.5:1 (F8).
+- The focus ring is two rings, background inside focus color, drawn around the
+  focused mark (F7).
+- Escape hides the tooltip as well as clearing; the tooltip stays while the
+  pointer is over it (F6).
+- `update()` parses its markup inertly and keeps only what Abscissa emits (F11).
+- Calling `enhance()` again with different options re-applies them (F18).
+- Axis groups are `aria-hidden` (A12).
+- Wide charts keep at least 30rem and scroll sideways on narrow screens, inside
+  a new `div.abscissa-frame` around the SVG (A13).
+- Count axes end at their last whole-number tick (A2).
+- Local-midnight Dates are read as calendar dates (A3); sub-daily time series
+  work and their labels include the UTC time (F3); years print without a
+  thousands separator (F4).
+- A progress ring past its total prints its real percentage and says so (A7).
+- A number and its text (2022 and "2022") are one category (A8).
+- Gallery pages link their stylesheet and script as files; the scheme button
+  starts in the state shown (F17).
+
+### Fixed
+
+- Clicking a mark on a line, area or scatter chart with a real pointer did
+  nothing (F1).
+- A log-axis line chart silently dropped values of zero or less; it now throws
+  (F2).
+- Area chart gaps were drawn and described as zero (F5).
+- A label containing the warning glyph made a chart throw (F13).
+- Theme names, fonts and scheme selectors could break out of the stylesheet
+  (F10, A10).
+- `update()` could run script from the markup it was given (F11).
+- Protocol-relative `//host` links were accepted by `href` (A11).
+- Empty bar data, all-empty series, non-positive sizes, prototype-named uptime
+  statuses and dilution factors too fine for an axis are now errors; very long
+  sparklines no longer overflow the stack (A7, F15).
+- The render tests' timeout suits a cold start (A15); visual tests are skipped,
+  not failed, on platforms with no stored images (F20).
+
+### Deprecated
+
+- Nothing was renamed: `label` keeps its meaning on the primitives (what is
+  measured), and `alt` is added as the text alternative everywhere (F18).
+
+### Documentation
+
+- The API reference covers `xType: "time"` for epoch milliseconds, heatmap
+  filtering by row, the single-series names used by `colors`, key opacity,
+  the `update()` markup contract, and pointer behavior (A16, F18, F11).
+- The README's five-minute page sets `color-scheme`, explains loading the
+  enhancement layer without a bundler, and marks Deno and Bun as untested
+  (F19, A16).
+- The AI usage record and the paper's disclosure give the true order of
+  events and the exact models (F22).
 
 ## [0.1.0-alpha.5] - 2026-09-28
 
@@ -53,7 +128,7 @@ From the first customer's integration (the interactive CV).
 
 ## [0.1.0-alpha.3] - 2026-09-28
 
-The first complete version, for review before the repository is made public.
+The first complete version, for review.
 
 ### Added
 
@@ -113,7 +188,8 @@ is built. In active development: the API will change.
   `dustinedwardsTheme`.
 - `checkTheme`: WCAG contrast and color-vision-deficiency checks for a theme.
 
-[Unreleased]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.5...HEAD
+[Unreleased]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.6...HEAD
+[0.1.0-alpha.6]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.5...v0.1.0-alpha.6
 [0.1.0-alpha.5]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.4...v0.1.0-alpha.5
 [0.1.0-alpha.4]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.3...v0.1.0-alpha.4
 [0.1.0-alpha.3]: https://github.com/DrDustinEdwards/abscissa/compare/v0.1.0-alpha.2...v0.1.0-alpha.3

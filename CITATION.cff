@@ -16,7 +16,7 @@ authors:
 repository-code: "https://github.com/DrDustinEdwards/abscissa"
 url: "https://abscissa.dustinedwards.info"
 license: MIT
-version: 0.1.0-alpha.5
+version: 0.1.0-alpha.6
 date-released: "2026-09-28"
 keywords:
   - data visualization
