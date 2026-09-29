@@ -48,9 +48,9 @@ zone already is.
    limited to `'self'`, blocked it: an error in every visitor's console and
    no analytics for the gallery. The policy therefore allows exactly the
    beacon's script origin and the addresses it reports to (the zone's own
-   `/cdn-cgi/rum`, hence `connect-src 'self'`, and cloudflareinsights.com). If Dustin would
-   rather the gallery had no analytics, excluding this hostname in the zone's
-   Web Analytics settings lets both allowances be removed. Inline styles cannot run
+   `/cdn-cgi/rum`, hence `connect-src 'self'`, and cloudflareinsights.com). The author chose to
+   keep analytics on the gallery (2026-09-28), so both allowances stay; excluding
+   this hostname in the zone's Web Analytics settings would let them be removed. Inline styles cannot run
    code, and scripts stay limited to `'self'`, so the risk this admits is
    small. Sites embedding Abscissa charts need the same allowance for styles.
 4. **Deploys.** `npm run deploy:gallery` builds the package and the gallery
