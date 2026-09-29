@@ -15,7 +15,11 @@ zone already is.
    the custom domain, with no Worker code, no `workers.dev` address and no
    preview URLs. A missing path gets `404.html`. The file carries no account
    id, because the repository is public; wrangler takes it from the login or
-   from `CLOUDFLARE_ACCOUNT_ID`.
+   from `CLOUDFLARE_ACCOUNT_ID`. Pages are served at clean addresses (`/` and
+   `/dustinedwards`), Cloudflare's default HTML handling, which redirects the
+   `.html` form there; the gallery links the clean addresses so no link costs
+   a redirect. (Turning the handling off serves `.html` directly but leaves `/`
+   without a page.)
 2. **No inline script or style blocks.** Each page links its stylesheet
    (`index.css`, `dustinedwards.css`: the theme's stylesheet, the page's
    colors and layout) and one script, `gallery.js`, which imports

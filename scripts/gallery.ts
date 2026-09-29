@@ -151,16 +151,23 @@ ${e.markup}
 
 const examples = await loadExamples();
 mkdirSync(outDir, { recursive: true });
+/** Each page's theme, file and stylesheet. */
 const pages: [Theme, string, string][] = [
   [defaultTheme, "index.html", "index.css"],
   [dustinedwardsTheme, "dustinedwards.html", "dustinedwards.css"],
 ];
+/**
+ * The address a page is linked at: the host (Cloudflare static assets) serves index.html at the
+ * directory and other pages without their extension, and redirects the .html form there.
+ */
+const cleanAddress = (file: string): string =>
+  file === "index.html" ? "./" : file.replace(/\.html$/, "");
 const nav = (current: string): string =>
   pages
     .map(([t, f]) =>
       f === current
         ? `<strong>${escapeText(t.name)}</strong>`
-        : `<a href="${f}">${escapeText(t.name)}</a>`,
+        : `<a href="${cleanAddress(f)}">${escapeText(t.name)}</a>`,
     )
     .join(" | ");
 for (const [theme, file, css] of pages) {

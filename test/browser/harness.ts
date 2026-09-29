@@ -31,7 +31,9 @@ export interface Harness {
 export async function startHarness(): Promise<Harness> {
   const server: Server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
-    const path = normalize(join(SITE, url.pathname === "/" ? "index.html" : url.pathname));
+    // Serve pages at clean addresses, as the host does: / is index.html, /page is page.html.
+    const requested = url.pathname === "/" ? "index.html" : url.pathname;
+    const path = normalize(join(SITE, extname(requested) === "" ? `${requested}.html` : requested));
     if (!path.startsWith(SITE)) {
       res.writeHead(403).end();
       return;

@@ -7,6 +7,7 @@
   "compatibility_date": "2026-09-28",
   "assets": {
     "directory": "./site/dist",
+    // Pages are served at clean addresses (/dustinedwards); /dustinedwards.html redirects there.
     "not_found_handling": "404-page"
   },
   "routes": [{ "pattern": "abscissa.dustinedwards.info", "custom_domain": true }],
