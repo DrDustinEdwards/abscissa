@@ -27,5 +27,5 @@
       "abscissa/enhance": ["./src/enhance/index.ts"]
     }
   },
-  "include": ["src", "test", "scripts", "examples", "vitest.config.ts"]
+  "include": ["src", "test", "scripts", "examples", "worker", "vitest.config.ts"]
 }
