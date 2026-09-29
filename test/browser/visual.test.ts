@@ -38,23 +38,22 @@ afterAll(async () => {
 });
 
 /**
- * Compares one image with its stored copy. With none stored, it writes one and returns false, so
- * a run records every missing image before the test fails, not just the first.
+ * Compares one image with its stored copy and returns what is wrong, or null. With none stored it
+ * writes one; with a difference it writes the new image and a diff to __output__. Either way the
+ * run goes on, so one run records every missing or changed image, not just the first.
  */
-function compare(name: string, actual: Uint8Array): boolean {
+function compare(name: string, actual: Uint8Array): string | null {
   const stored = join(snapshots, `${name}.png`);
   if (update || !existsSync(stored)) {
     writeFileSync(stored, actual);
-    return update;
+    return update ? null : `${name}: no stored image; wrote one, review and commit it`;
   }
   const expected = PNG.sync.read(readFileSync(stored));
   const received = PNG.sync.read(Buffer.from(actual));
   if (expected.width !== received.width || expected.height !== received.height) {
     mkdirSync(output, { recursive: true });
     writeFileSync(join(output, `${name}.actual.png`), actual);
-    throw new Error(
-      `${name}: size changed from ${expected.width}x${expected.height} to ${received.width}x${received.height}`,
-    );
+    return `${name}: size changed from ${expected.width}x${expected.height} to ${received.width}x${received.height}`;
   }
   const diff = new PNG({ width: expected.width, height: expected.height });
   const changed = pixelmatch(
@@ -71,9 +70,9 @@ function compare(name: string, actual: Uint8Array): boolean {
     mkdirSync(output, { recursive: true });
     writeFileSync(join(output, `${name}.actual.png`), actual);
     writeFileSync(join(output, `${name}.diff.png`), PNG.sync.write(diff));
+    return `${name}: ${changed} pixels differ`;
   }
-  expect(changed, `${name}: ${changed} pixels differ`).toBeLessThanOrEqual(TOLERATED_PIXELS);
-  return true;
+  return null;
 }
 
 const pages = [
@@ -87,15 +86,16 @@ describe.skipIf(!hasImages && !update).each(pages)("%s theme", (theme, file) => 
     const page = await harness.open(file, scheme, { scripts: false });
     const sections = await page.$$("section.example");
     expect(sections.length).toBeGreaterThan(0);
-    const missing: string[] = [];
+    const problems: string[] = [];
     for (const section of sections) {
       const id = await section.evaluate((el) => el.getAttribute("data-example") ?? "");
       const target = (await section.$("figure, .primitives, svg")) ?? section;
       const shot = await target.screenshot({ type: "png" });
       const name = `${theme}-${scheme}-${id}`;
-      if (!compare(name, shot)) missing.push(name);
+      const problem = compare(name, shot);
+      if (problem) problems.push(problem);
     }
     await page.close();
-    expect(missing, "no stored image for these; wrote them, review and commit them").toEqual([]);
+    expect(problems).toEqual([]);
   });
 });
