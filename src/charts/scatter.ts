@@ -1,6 +1,6 @@
 import * as Plot from "@observablehq/plot";
 import { defaultFormat, domainOf, type KeysOfType, readLabel, readNumber } from "../render/data.js";
-import { type FigureOptions, figure, type SeriesColor } from "../render/figure.js";
+import { type FigureOptions, figure, type SeriesColor, validateFigure } from "../render/figure.js";
 import { keyed, renderPlot } from "../render/plot.js";
 import { planSeries } from "../render/series.js";
 
@@ -44,6 +44,7 @@ const KIND = "scatterPlot";
  */
 export function scatterPlot<T extends object>(options: ScatterPlotOptions<T>): string {
   const { data, x, y, series, label } = options;
+  validateFigure(KIND, options);
   if (data.length === 0) throw new Error(`${KIND}: data is empty`);
   const format = options.formatValue ?? defaultFormat;
   const xLabel = options.xLabel === undefined ? x : options.xLabel;
@@ -78,6 +79,11 @@ export function scatterPlot<T extends object>(options: ScatterPlotOptions<T>): s
   });
 
   const multi = series !== undefined;
+  // Keyboard order: left to right, and bottom to top among points at the same x.
+  const order = points
+    .map((p, i) => ({ p, i }))
+    .sort((a, b) => a.p.x - b.p.x || a.p.y - b.p.y || a.i - b.i);
+  const rank = new Map(order.map(({ p }, r) => [p, r]));
   const describe = (p: ScatterPoint): string =>
     `${label === undefined ? "" : `${p.name}: `}${multi ? `${p.series}, ` : ""}${xLabel ?? x} ${format(p.x)}, ${yLabel ?? y} ${format(p.y)}`;
 
@@ -107,6 +113,8 @@ export function scatterPlot<T extends object>(options: ScatterPlotOptions<T>): s
       render: keyed(points, (p) => ({
         key: p.key,
         ...(multi && series ? { filter: { field: series, value: p.series } } : {}),
+        column: rank.get(p) ?? 0,
+        row: 0,
         x: String(p.x),
         ...(multi ? { series: p.series } : {}),
       })),

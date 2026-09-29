@@ -72,6 +72,20 @@ export interface FigureParts {
   readonly slotColors?: ReadonlyMap<number, SeriesColor>;
 }
 
+/**
+ * Checks the options every chart shares before anything is drawn: a meaningful `alt`, and a
+ * positive finite width and height when given (A7, F15).
+ */
+export function validateFigure(kind: string, options: FigureOptions): void {
+  requireAlt(options.alt, kind);
+  for (const name of ["width", "height"] as const) {
+    const value = options[name];
+    if (value !== undefined && !(Number.isFinite(value) && value > 0)) {
+      throw new Error(`${kind}: ${name} must be a positive number, is ${value}`);
+    }
+  }
+}
+
 /** Throws unless `alt` is meaningful text. */
 function requireAlt(alt: string | undefined, kind: string): string {
   const trimmed = (alt ?? "").trim();
@@ -195,7 +209,16 @@ export function figure(options: FigureOptions, parts: FigureParts): string {
     [
       title ? element("p", { class: "abscissa-title" }, escapeHtml(title)) : "",
       legend,
-      parts.svg,
+      // A frame that scrolls sideways on narrow screens instead of shrinking the text (A13).
+      // Drawings 30rem or wider keep that width and scroll; narrower ones scale as usual.
+      element(
+        "div",
+        {
+          class:
+            (options.width ?? 640) >= 480 ? "abscissa-frame abscissa-frame-wide" : "abscissa-frame",
+        },
+        parts.svg,
+      ),
       caption ? element("figcaption", { class: "abscissa-caption" }, escapeHtml(caption)) : "",
       tableBlock,
     ].join(""),

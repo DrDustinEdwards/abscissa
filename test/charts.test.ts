@@ -49,9 +49,9 @@ describe("heatmap", () => {
       m.getAttribute("fill"),
     ]);
     expect(fills).toEqual([
-      ["1|A", "var(--abscissa-sequential-1)"],
-      ["2|A", "var(--abscissa-sequential-3)"],
-      ["1|B", "var(--abscissa-sequential-5)"],
+      ['["1","A"]', "var(--abscissa-sequential-1)"],
+      ['["2","A"]', "var(--abscissa-sequential-3)"],
+      ['["1","B"]', "var(--abscissa-sequential-5)"],
     ]);
     const empty = fig.querySelector('g[stroke="var(--abscissa-status-unknown)"] rect');
     expect(empty?.querySelector("title")?.textContent).toBe("r B, c 2: no data");

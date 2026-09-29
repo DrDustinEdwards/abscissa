@@ -3,11 +3,13 @@ import {
   defaultFormat,
   domainOf,
   type KeysOfType,
+  markKey,
+  maxOf,
   readCategory,
   readLabel,
   readNumber,
 } from "../render/data.js";
-import { type FigureOptions, figure, type SeriesColor } from "../render/figure.js";
+import { type FigureOptions, figure, type SeriesColor, validateFigure } from "../render/figure.js";
 import { keyed, renderPlot } from "../render/plot.js";
 import { planSeries } from "../render/series.js";
 
@@ -62,6 +64,12 @@ export interface BarChartOptions<T extends object> extends FigureOptions {
    * printed, starting from the first, so labels stay legible when the chart is drawn small.
    */
   readonly maxXTicks?: number;
+  /**
+   * Print each series' name inside its bars where the name fits, so series are told apart by
+   * text as well as color (A1). Stacked layouts only; small segments keep their hover details and
+   * the data table.
+   */
+  readonly directLabels?: boolean;
 }
 
 interface BarPoint {
@@ -74,12 +82,14 @@ const KIND = "barChart";
 
 /**
  * Allows relative and http(s) links only, so data can never produce a `javascript:` URL. Browsers
- * ignore control characters and spaces inside a scheme, so the scheme is read without them.
+ * ignore control characters and spaces inside a scheme, so the scheme is read without them. A
+ * leading `//` (or its backslash forms) names another host, so it is refused too (A11).
  */
 function safeHref(href: string): string {
   const compact = [...href].filter((ch) => ch.charCodeAt(0) > 0x20).join("");
   const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(compact)?.[1]?.toLowerCase();
-  if (scheme !== undefined && scheme !== "http" && scheme !== "https") {
+  const otherHost = /^[/\\][/\\]/.test(compact);
+  if (otherHost || (scheme !== undefined && scheme !== "http" && scheme !== "https")) {
     throw new Error(`${KIND}: href "${href}" is not a relative or http(s) link`);
   }
   return href;
@@ -101,10 +111,10 @@ const STEPS = [1, 2, 5];
 function countTicks(points: readonly BarPoint[], grouped: boolean): number[] {
   const totals = new Map<string, number>();
   for (const p of points) {
-    const id = grouped ? `${p.x}|${p.series}` : p.x;
+    const id = grouped ? markKey(p.x, p.series) : p.x;
     totals.set(id, (totals.get(id) ?? 0) + p.value);
   }
-  const max = Math.max(1, ...totals.values());
+  const max = Math.max(1, maxOf(totals.values()));
   let step = 1;
   for (let magnitude = 1; ; magnitude *= 10) {
     const found = STEPS.map((s) => s * magnitude).find((s) => max / s <= 6);
@@ -133,6 +143,11 @@ function countTicks(points: readonly BarPoint[], grouped: boolean): number[] {
  */
 export function barChart<T extends object>(options: BarChartOptions<T>): string {
   const { data, x, y, series } = options;
+  validateFigure(KIND, options);
+  if (data.length === 0) throw new Error(`${KIND}: data is empty`);
+  if (options.directLabels && options.layout === "grouped") {
+    throw new Error(`${KIND}: directLabels needs the stacked layout; grouped bars have a legend`);
+  }
   const horizontal = options.orientation === "horizontal";
   const grouped = options.layout === "grouped" && series !== undefined;
   const format = options.formatValue ?? defaultFormat;
@@ -158,13 +173,20 @@ export function barChart<T extends object>(options: BarChartOptions<T>): string 
   const cells = new Map<string, BarPoint>();
   data.forEach((row, i) => {
     const point = { x: String(rawX[i]), series: seriesOf(row, i) };
-    const id = `${point.x}\u0000${point.series}`;
+    const id = markKey(point.x, point.series);
     const value = y === undefined ? 1 : readNumber(KIND, row, y, i);
     const existing = cells.get(id);
     if (existing) existing.value += value;
     else cells.set(id, { ...point, value });
   });
-  const points = [...cells.values()];
+  // In category order, then series order: the reading order, and the order labels are drawn in.
+  const columnOf = new Map(xNames.map((name, i) => [name, i]));
+  const rowOf = new Map(seriesNames.map((name, i) => [name, i]));
+  const points = [...cells.values()].sort(
+    (a, b) =>
+      (columnOf.get(a.x) ?? 0) - (columnOf.get(b.x) ?? 0) ||
+      (rowOf.get(a.series) ?? 0) - (rowOf.get(b.series) ?? 0),
+  );
 
   const describe = (p: BarPoint): string =>
     series === undefined
@@ -174,13 +196,15 @@ export function barChart<T extends object>(options: BarChartOptions<T>): string 
   const render = keyed(
     points,
     (p) => ({
-      key: `${p.x}|${p.series}`,
+      key: markKey(p.x, p.series),
       filter:
         series === undefined || options.filterBy === "x"
           ? { field: x, value: p.x }
           : { field: series, value: p.series },
       x: p.x,
       ...(series === undefined ? {} : { series: p.series }),
+      column: columnOf.get(p.x) ?? 0,
+      row: rowOf.get(p.series) ?? 0,
     }),
     // A link is read on its own, so it carries its own name.
     options.href ? (el, p) => el.setAttribute("aria-label", describe(p)) : undefined,
@@ -205,7 +229,7 @@ export function barChart<T extends object>(options: BarChartOptions<T>): string 
       : Plot.barY(points, Plot.stackY({ ...common, ...order, y: "value", x: "x" }));
   }
 
-  const longest = Math.max(...xNames.map((n) => n.length), 1);
+  const longest = Math.max(maxOf(xNames.map((n) => n.length)), 1);
   const width = options.width ?? 640;
   const height = options.height ?? (horizontal ? Math.max(120, xNames.length * 28 + 60) : 320);
   const thinned = thinTicks(xNames, options.maxXTicks);
@@ -222,15 +246,18 @@ export function barChart<T extends object>(options: BarChartOptions<T>): string 
     axis: horizontal ? "left" : "bottom",
     ...(thinned ? { ticks: thinned } : {}),
   } as const;
+  const ticks = y === undefined ? countTicks(points, grouped) : undefined;
   const valueScale = {
     label: valueLabel,
     labelArrow: "none",
     labelAnchor: "center",
     grid: true,
-    nice: true,
     zero: true,
-    // Counts are whole numbers, so their axis never shows 0.5.
-    ...(y === undefined ? { ticks: countTicks(points, grouped), tickFormat: format } : {}),
+    // Counts are whole numbers, so their axis never shows 0.5, and the axis ends at the last
+    // tick so no tick is drawn past the plot (A2).
+    ...(ticks
+      ? { ticks, tickFormat: format, domain: [0, ticks[ticks.length - 1] ?? 1], nice: false }
+      : { nice: true }),
   } as const;
 
   const { svg } = renderPlot(
@@ -256,13 +283,16 @@ export function barChart<T extends object>(options: BarChartOptions<T>): string 
     },
     options.alt,
     options.href ? "group" : "img",
+    options.directLabels && series !== undefined
+      ? (svg) => labelSegments(svg, horizontal)
+      : undefined,
   );
 
   const seriesColumns = seriesNames;
   const rows = xNames.map((name) => [
     name,
     ...seriesColumns.map((s) => {
-      const cell = cells.get(`${name}\u0000${s}`);
+      const cell = cells.get(markKey(name, s));
       return cell ? format(cell.value) : y === undefined ? format(0) : "";
     }),
   ]);
@@ -282,4 +312,48 @@ export function barChart<T extends object>(options: BarChartOptions<T>): string 
       rows,
     },
   });
+}
+
+/** A name fits in a segment when the segment is this much taller and wider than the text. */
+const LABEL_HEIGHT = 16;
+const CHAR_WIDTH = 6.6;
+
+/**
+ * Writes each series' name inside the stacked segments it fits in, in the color chosen for text
+ * on that series. Drawn after Plot lays out the bars, from their final geometry.
+ */
+function labelSegments(svg: SVGSVGElement, horizontal: boolean): void {
+  const group = svg.querySelector('[data-abscissa-mark="bar"]');
+  if (!group) return;
+  const document = svg.ownerDocument;
+  const labels = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  labels.setAttribute("data-abscissa-mark", "bar label");
+  labels.setAttribute("aria-hidden", "true");
+  // Labels sit on the bars they name; pointer events go through them to the bar.
+  labels.setAttribute("pointer-events", "none");
+  labels.setAttribute("text-anchor", "middle");
+  labels.setAttribute("font-size", "11");
+  for (const mark of group.querySelectorAll("[data-abscissa-key]")) {
+    const shape = mark.localName === "rect" ? mark : mark.querySelector("rect");
+    const name = mark.getAttribute("data-abscissa-series");
+    const fill = shape?.getAttribute("fill") ?? "";
+    const slot = /--abscissa-series-(\d)/.exec(fill)?.[1];
+    if (!shape || !name || !slot) continue;
+    const [bx, by, bw, bh] = ["x", "y", "width", "height"].map((a) =>
+      Number(shape.getAttribute(a)),
+    ) as [number, number, number, number];
+    const needed = name.length * CHAR_WIDTH + 8;
+    const fits = horizontal
+      ? bw >= needed && bh >= LABEL_HEIGHT
+      : bh >= LABEL_HEIGHT && bw >= needed;
+    if (!fits) continue;
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", String(bx + bw / 2));
+    text.setAttribute("y", String(by + bh / 2));
+    text.setAttribute("dy", "0.35em");
+    text.setAttribute("fill", `var(--abscissa-series-text-${slot})`);
+    text.textContent = name;
+    labels.append(text);
+  }
+  group.after(labels);
 }

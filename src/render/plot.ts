@@ -25,6 +25,13 @@ export interface MarkDatum {
   readonly x?: string;
   /** The series name, when the chart has series. */
   readonly series?: string;
+  /**
+   * The mark's place for keyboard reading order: its category (column) and its position within
+   * the category (row). Taken from the data, not the drawing, so order is right in facets and in
+   * charts enhanced while hidden (F9).
+   */
+  readonly column?: number;
+  readonly row?: number;
 }
 
 /**
@@ -76,6 +83,8 @@ export function tag(el: Element, datum: MarkDatum): void {
   }
   if (datum.x !== undefined) el.setAttribute("data-abscissa-x", datum.x);
   if (datum.series !== undefined) el.setAttribute("data-abscissa-series", datum.series);
+  if (datum.column !== undefined) el.setAttribute("data-abscissa-col", String(datum.column));
+  if (datum.row !== undefined) el.setAttribute("data-abscissa-row", String(datum.row));
 }
 
 /** A scale as the enhancement layer needs it to turn a pointer position back into data. */
@@ -154,13 +163,24 @@ export function renderPlot(
   options: Plot.PlotOptions,
   alt: string,
   role: "img" | "group" = "img",
+  after?: (svg: SVGSVGElement) => void,
 ): RenderedPlot {
   const document = createDocument();
   const svg = Plot.plot({ ...options, document }) as unknown as SVGSVGElement & Plot.Plot;
 
-  const warning = [...svg.querySelectorAll("text")].find((t) => t.textContent?.includes("⚠"));
+  // Plot's warning is its own node: a top-level <text> whose <title> counts the warnings. Found by
+  // that structure, not by the glyph, which data may contain (F13).
+  const warning = [...svg.children].find(
+    (el) =>
+      el.localName === "text" &&
+      /^\d+ warnings?\. Please check the console\.$/.test(
+        el.querySelector("title")?.textContent ?? "",
+      ),
+  );
   if (warning) {
-    throw new Error(`Observable Plot warned while drawing "${alt}": ${warning.textContent ?? ""}`);
+    throw new Error(
+      `Observable Plot warned while drawing "${alt}": ${warning.querySelector("title")?.textContent ?? ""}`,
+    );
   }
   if (svg.localName !== "svg") {
     throw new Error(
@@ -175,7 +195,13 @@ export function renderPlot(
   for (const group of svg.querySelectorAll("[aria-label]")) {
     group.setAttribute("data-abscissa-mark", group.getAttribute("aria-label") ?? "");
     group.removeAttribute("aria-label");
+    // Axes repeat what the text alternative and the data table say; once enhanced, loose tick
+    // text would be read before the marks (A12).
+    if (/axis/.test(group.getAttribute("data-abscissa-mark") ?? "")) {
+      group.setAttribute("aria-hidden", "true");
+    }
   }
+  after?.(svg);
   roundCoordinates(svg);
   // A chart whose marks are links cannot be one image: role="img" would hide the links.
   svg.setAttribute("role", role);

@@ -3,10 +3,13 @@ import {
   defaultFormat,
   domainOf,
   type KeysOfType,
+  markKey,
+  maxOf,
+  minOf,
   readCategory,
   readNumberOrNull,
 } from "../render/data.js";
-import { type FigureOptions, figure, type RampItem } from "../render/figure.js";
+import { type FigureOptions, figure, type RampItem, validateFigure } from "../render/figure.js";
 import { decorate, keyed, renderPlot } from "../render/plot.js";
 
 /** Options for {@link heatmap}. */
@@ -59,6 +62,7 @@ function stepOf(value: number, thresholds: readonly number[]): number {
  */
 export function heatmap<T extends object>(options: HeatmapOptions<T>): string {
   const { data, x, y, value } = options;
+  validateFigure(KIND, options);
   if (data.length === 0) throw new Error(`${KIND}: data is empty`);
   const format = options.formatValue ?? defaultFormat;
   const valueLabel = options.valueLabel ?? value;
@@ -77,8 +81,8 @@ export function heatmap<T extends object>(options: HeatmapOptions<T>): string {
     seen.add(id);
   });
 
-  const min = Math.min(...present);
-  const max = Math.max(...present);
+  const min = minOf(present);
+  const max = maxOf(present);
   // Flat data still gets ascending thresholds: every cell then lands in the first step.
   const span = max - min || 1;
   const thresholds: readonly number[] =
@@ -106,7 +110,7 @@ export function heatmap<T extends object>(options: HeatmapOptions<T>): string {
     `${yColumn} ${c.y}, ${xColumn} ${c.x}: ${c.value === null ? "no data" : `${format(c.value)} ${valueLabel}`}`;
   const showLabels = options.cellLabels ?? cells.length <= 100;
 
-  const longest = Math.max(...yNames.map((n) => n.length), 1);
+  const longest = Math.max(maxOf(yNames.map((n) => n.length)), 1);
   const marks: Plot.Markish[] = [
     Plot.cell(emptyCells, {
       x: "x",
@@ -124,7 +128,13 @@ export function heatmap<T extends object>(options: HeatmapOptions<T>): string {
       title: describe,
       render: keyed(
         filledCells,
-        (c) => ({ key: `${c.x}|${c.y}`, filter: { field: y, value: c.y }, x: c.x }),
+        (c) => ({
+          key: markKey(c.x, c.y),
+          filter: { field: y, value: c.y },
+          x: c.x,
+          column: xNames.indexOf(c.x),
+          row: yNames.indexOf(c.y),
+        }),
         (el, c) => el.setAttribute("fill", `var(--abscissa-sequential-${c.step})`),
       ),
     }),

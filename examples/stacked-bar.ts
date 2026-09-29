@@ -24,6 +24,7 @@ export default barChart({
   x: "year",
   series: "type",
   seriesDomain: ["Publications", "Grants", "Talks"],
+  directLabels: true,
   xLabel: "Year",
   yLabel: "Entries",
   title: "Entries per year",

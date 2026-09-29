@@ -9,7 +9,8 @@ import {
   type SimulationLinkDatum,
   type SimulationNodeDatum,
 } from "d3-force";
-import { type FigureOptions, figure, type SeriesColor } from "../render/figure.js";
+import { maxOf, minOf } from "../render/data.js";
+import { type FigureOptions, figure, type SeriesColor, validateFigure } from "../render/figure.js";
 import { keyed, renderPlot } from "../render/plot.js";
 import { planSeries } from "../render/series.js";
 
@@ -66,6 +67,7 @@ const RADIUS = 6;
  */
 export function networkChart(options: NetworkChartOptions): string {
   const { nodes, links } = options;
+  validateFigure(KIND, options);
   if (nodes.length === 0) throw new Error(`${KIND}: nodes is empty`);
   const width = options.width ?? 640;
   const height = options.height ?? 420;
@@ -118,8 +120,8 @@ export function networkChart(options: NetworkChartOptions): string {
   const ys = laidOut.map((n) => n.y ?? 0);
   const pad = 1;
   const span = (values: number[]): [number, number] => {
-    const lo = Math.min(...values);
-    const hi = Math.max(...values);
+    const lo = minOf(values);
+    const hi = maxOf(values);
     return lo === hi ? [lo - pad, hi + pad] : [lo, hi];
   };
   const showLabels = options.nodeLabels ?? laidOut.length <= 40;
@@ -145,6 +147,8 @@ export function networkChart(options: NetworkChartOptions): string {
       title: describe,
       render: keyed(laidOut, (n) => ({
         key: n.id,
+        column: laidOut.indexOf(n),
+        row: 0,
         filter: grouped ? { field: "group", value: n.group } : { field: "id", value: n.id },
         x: n.label,
         ...(grouped ? { series: n.group } : {}),

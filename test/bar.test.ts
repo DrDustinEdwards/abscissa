@@ -17,14 +17,14 @@ describe("barChart", () => {
       barChart({ data: entries, x: "year", series: "type", alt: "Entries by year" }),
     );
     const marks = keyedMarks(fig);
-    expect(marks.map((m) => m.getAttribute("data-abscissa-key"))).toEqual([
-      "2022|Publications",
-      "2022|Talks",
-      "2023|Publications",
-      "2024|Grants",
-      "2024|Publications",
+    expect(marks.map((m) => JSON.parse(m.getAttribute("data-abscissa-key") ?? ""))).toEqual([
+      ["2022", "Publications"],
+      ["2022", "Talks"],
+      ["2023", "Publications"],
+      ["2024", "Publications"],
+      ["2024", "Grants"],
     ]);
-    expect(marks[4]?.querySelector("title")?.textContent).toBe("year 2024, Publications: 2");
+    expect(marks[3]?.querySelector("title")?.textContent).toBe("year 2024, Publications: 2");
   });
 
   it("names the SVG, not the figure, and keeps caption and table outside role=img", () => {

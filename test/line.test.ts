@@ -18,7 +18,7 @@ describe("lineChart", () => {
     );
     const keys = keyedMarks(fig).map((m) => m.getAttribute("data-abscissa-key"));
     expect(keys).toHaveLength(5);
-    expect(keys).not.toContain("2025-01-13|Travis");
+    expect(keys).not.toContain(JSON.stringify([Date.UTC(2025, 0, 13), "Travis"]));
     expect(keyedMarks(fig)[0]?.querySelector("title")?.textContent).toBe(
       "Travis, week 2025-01-06: 10",
     );
@@ -106,11 +106,11 @@ describe("lineChart", () => {
 });
 
 describe("areaChart", () => {
-  it("stacks series and keys each value, treating gaps as zero height", () => {
+  it("stacks series and keys each present value; a gap has no point (F5)", () => {
     const fig = parse(
       areaChart({ data: weekly, x: "week", y: "cases", series: "county", alt: "a" }),
     );
-    expect(keyedMarks(fig)).toHaveLength(6);
+    expect(keyedMarks(fig)).toHaveLength(5);
     expect(fig.querySelector('[data-abscissa-mark="area"]')?.children).toHaveLength(2);
   });
 

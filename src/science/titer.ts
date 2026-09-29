@@ -1,6 +1,6 @@
 import * as Plot from "@observablehq/plot";
-import { domainOf, type KeysOfType, readLabel, readNumber } from "../render/data.js";
-import { type FigureOptions, figure, type SeriesColor } from "../render/figure.js";
+import { domainOf, type KeysOfType, maxOf, minOf, readLabel, readNumber } from "../render/data.js";
+import { type FigureOptions, figure, type SeriesColor, validateFigure } from "../render/figure.js";
 import { keyed, renderPlot } from "../render/plot.js";
 import { planSeries } from "../render/series.js";
 import { type GeometricSummary, geometricSummary } from "./stats.js";
@@ -71,6 +71,7 @@ const formatTiter = (value: number): string =>
  */
 export function titerPlot<T extends object>(options: TiterPlotOptions<T>): string {
   const { data, group, titer } = options;
+  validateFigure(KIND, options);
   if (data.length === 0) throw new Error(`${KIND}: data is empty`);
   const dilution = options.dilution ?? { start: 10, factor: 2 };
   if (!(dilution.start > 0) || !(dilution.factor > 1)) {
@@ -107,7 +108,7 @@ export function titerPlot<T extends object>(options: TiterPlotOptions<T>): strin
     const id = `${s.group}|${s.plotted}`;
     stacks.set(id, [...(stacks.get(id) ?? []), s]);
   }
-  const widest = Math.max(...[...stacks.values()].map((s) => s.length));
+  const widest = maxOf([...stacks.values()].map((s) => s.length));
   const spacing = Math.min(0.08, 0.7 / Math.max(1, widest - 1));
   for (const stack of stacks.values()) {
     stack.forEach((s, k) => {
@@ -115,6 +116,16 @@ export function titerPlot<T extends object>(options: TiterPlotOptions<T>): strin
     });
   }
 
+  // Keyboard order within a group: lowest titer first, then left to right.
+  const withinGroup = new Map<Sample, number>();
+  for (const g of groups) {
+    samples
+      .filter((s) => s.group === g)
+      .sort((a, b) => a.plotted - b.plotted || a.offset - b.offset)
+      .forEach((s, i) => {
+        withinGroup.set(s, i);
+      });
+  }
   const summaries = new Map<string, GeometricSummary>(
     groups.map((g) => [
       g,
@@ -126,9 +137,17 @@ export function titerPlot<T extends object>(options: TiterPlotOptions<T>): strin
   const colorOf = (s: Sample): string => (colorByGroup ? s.group : "Samples");
 
   const all = samples.map((s) => s.plotted);
-  const top = Math.max(...all, lod);
+  const top = Math.max(maxOf(all), lod);
   const ticks: number[] = [];
-  for (let v = dilution.start; v <= top * dilution.factor; v *= dilution.factor) ticks.push(v);
+  for (let v = dilution.start; v <= top * dilution.factor; v *= dilution.factor) {
+    ticks.push(v);
+    // A step this fine is not a dilution series, and would draw thousands of ticks (F15).
+    if (ticks.length > 40) {
+      throw new Error(
+        `${KIND}: dilution factor ${dilution.factor} needs over 40 steps from ${dilution.start} to ${top}`,
+      );
+    }
+  }
   if (lod / 2 < dilution.start) ticks.unshift(lod / 2);
 
   const summaryRows = groups.map((g, i) => ({ g, i, s: summaries.get(g) as GeometricSummary }));
@@ -177,6 +196,8 @@ export function titerPlot<T extends object>(options: TiterPlotOptions<T>): strin
         (s) => ({
           key: s.key,
           filter: { field: group, value: s.group },
+          column: s.groupIndex,
+          row: withinGroup.get(s) ?? 0,
           x: s.group,
           series: s.group,
         }),
@@ -207,7 +228,7 @@ export function titerPlot<T extends object>(options: TiterPlotOptions<T>): strin
       y: {
         type: "log",
         base: dilution.factor,
-        domain: [Math.min(...ticks), Math.max(...ticks)],
+        domain: [minOf(ticks), maxOf(ticks)],
         ticks,
         tickFormat: tick,
         label: titerLabel,

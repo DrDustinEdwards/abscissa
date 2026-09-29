@@ -16,13 +16,16 @@ describe("progressRing", () => {
     expect(svg.querySelector("text")?.textContent).toBe("75%");
   });
 
-  it("uses a percentage for fractions, caps at full, and draws no arc at zero", () => {
+  it("uses a percentage for fractions, says when a value passes the total, and draws no arc at zero (A7)", () => {
     expect(parse(progressRing({ value: 0.5, label: "Done" })).getAttribute("aria-label")).toBe(
       "Done: 50%",
     );
     expect(
       parse(progressRing({ value: 2, label: "Done" })).querySelector("text")?.textContent,
-    ).toBe("100%");
+    ).toBe("200%");
+    expect(
+      parse(progressRing({ value: 3, max: 2, label: "Done" })).getAttribute("aria-label"),
+    ).toBe("Done: 3 of 2 (150%, more than the total)");
     expect(
       parse(progressRing({ value: 0, label: "Done" })).querySelectorAll("circle"),
     ).toHaveLength(1);
@@ -37,7 +40,12 @@ describe("progressRing", () => {
   it("refuses bad values", () => {
     expect(() => progressRing({ value: -1, label: "x" })).toThrow(/zero or more/);
     expect(() => progressRing({ value: 1, max: 0, label: "x" })).toThrow(/above zero/);
-    expect(() => progressRing({ value: 1, label: " " })).toThrow(/label is required/);
+    expect(() => progressRing({ value: 1, label: " " })).toThrow(/label or alt is required/);
+    // F15: sizes must be real numbers.
+    expect(() => progressRing({ value: 1, label: "x", size: Number.NaN })).toThrow(/size/);
+    expect(() => progressRing({ value: 1, label: "x", size: 10, thickness: 10 })).toThrow(
+      /thickness/,
+    );
   });
 });
 

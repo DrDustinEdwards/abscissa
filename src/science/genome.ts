@@ -1,6 +1,6 @@
 import * as Plot from "@observablehq/plot";
-import { defaultFormat } from "../render/data.js";
-import { type FigureOptions, figure, type SeriesColor } from "../render/figure.js";
+import { defaultFormat, markKey, maxOf } from "../render/data.js";
+import { type FigureOptions, figure, type SeriesColor, validateFigure } from "../render/figure.js";
 import { decorate, keyed, renderPlot } from "../render/plot.js";
 import { planSeries } from "../render/series.js";
 
@@ -41,6 +41,8 @@ interface Placed {
   readonly type: string;
   readonly track: string;
   readonly row: string;
+  /** The lane within the track, for keyboard order. */
+  readonly lane: number;
 }
 
 const KIND = "genomeTrack";
@@ -88,6 +90,7 @@ export function genomeTrack(options: GenomeTrackOptions): string {
   const { features, length } = options;
   if (!Number.isInteger(length) || length < 1)
     throw new Error(`${KIND}: length must be a positive integer, is ${length}`);
+  validateFigure(KIND, options);
   if (features.length === 0) throw new Error(`${KIND}: features is empty`);
   features.forEach((f, i) => {
     if (
@@ -118,19 +121,24 @@ export function genomeTrack(options: GenomeTrackOptions): string {
 
   const lanes = packLanes(features, trackOf);
   const placed: Placed[] = features.map((f, i) => ({
-    key: `${trackOf(f)}|${f.name}|${f.start}`,
+    key: markKey(trackOf(f), f.name, f.start),
+    lane: lanes[i] ?? 0,
     feature: f,
     type: typeOf(f),
     track: trackOf(f),
     row: `${trackOf(f)}${ROW_SEPARATOR}${lanes[i]}`,
   }));
+  // Keyboard order: along the sequence, then down the lanes.
+  const byStart = new Map(
+    [...placed]
+      .sort((a, b) => a.feature.start - b.feature.start || a.lane - b.lane)
+      .map((p, i) => [p, i]),
+  );
   const rows: string[] = [];
   for (const track of tracks) {
     const laneCount = Math.max(
       0,
-      ...placed
-        .filter((p) => p.track === track)
-        .map((p) => Number(p.row.split(ROW_SEPARATOR)[1]) + 1),
+      maxOf(placed.filter((p) => p.track === track).map((p) => p.lane + 1)),
     );
     for (let lane = 0; lane < Math.max(1, laneCount); lane += 1)
       rows.push(`${track}${ROW_SEPARATOR}${lane}`);
@@ -148,7 +156,7 @@ export function genomeTrack(options: GenomeTrackOptions): string {
     const [track, lane] = row.split(ROW_SEPARATOR);
     return lane === "0" && tracks.length > 1 ? (track ?? "") : "";
   };
-  const longestTrack = tracks.length > 1 ? Math.max(...tracks.map((t) => t.length)) : 0;
+  const longestTrack = tracks.length > 1 ? maxOf(tracks.map((t) => t.length)) : 0;
   const plotLeft = tracks.length > 1 ? Math.min(160, longestTrack * 7 + 20) : 16;
   const pixelsPerNt = (width - plotLeft - 24) / length;
 
@@ -222,6 +230,8 @@ export function genomeTrack(options: GenomeTrackOptions): string {
         (p) => ({
           key: p.key,
           filter: { field: "type", value: p.type },
+          column: byStart.get(p) ?? 0,
+          row: p.lane,
           x: String(p.feature.start),
           series: p.type,
         }),

@@ -7,8 +7,13 @@ export interface ProgressRingOptions {
   readonly value: number;
   /** The value that fills the ring (default 1). */
   readonly max?: number;
-  /** What is progressing, e.g. "Chapters drafted"; it starts the text alternative. */
-  readonly label: string;
+  /**
+   * What is progressing, e.g. "Chapters drafted"; it starts the generated text alternative.
+   * Required unless `alt` is given.
+   */
+  readonly label?: string;
+  /** The text alternative, instead of the one generated from `label` and the values (F18). */
+  readonly alt?: string;
   /** The ring's outer diameter in CSS pixels (default 40). */
   readonly size?: number;
   /** The ring's stroke width (default size / 8). */
@@ -36,18 +41,32 @@ export function progressRing(options: ProgressRingOptions): string {
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`progressRing: value must be zero or more, is ${value}`);
   }
-  if (options.label.trim() === "") throw new Error("progressRing: label is required");
+  const subject = options.label?.trim() ?? "";
+  const given = options.alt?.trim() ?? "";
+  if (subject === "" && given === "") throw new Error("progressRing: label or alt is required");
   const size = options.size ?? 40;
   const thickness = options.thickness ?? size / 8;
+  for (const [name, n] of [
+    ["size", size],
+    ["thickness", thickness],
+  ] as const) {
+    if (!(Number.isFinite(n) && n > 0)) {
+      throw new Error(`progressRing: ${name} must be a positive number, is ${n}`);
+    }
+  }
+  if (thickness >= size) throw new Error("progressRing: thickness must be less than size");
+  // The ring can only be full, but the number says how far past the total the value is (A7).
   const fraction = Math.min(1, value / max);
-  const percent = Math.round(fraction * 100);
+  const percent = Math.round((value / max) * 100);
   const radius = (size - thickness) / 2;
   const circumference = 2 * Math.PI * radius;
   const c = size / 2;
+  const over = value > max ? ", more than the total" : "";
   const alt =
-    max === 1
-      ? `${options.label}: ${percent}%`
-      : `${options.label}: ${value} of ${max} (${percent}%)`;
+    given ||
+    (max === 1
+      ? `${subject}: ${percent}%${over}`
+      : `${subject}: ${value} of ${max} (${percent}%${over})`);
   const showValue = options.showValue ?? size >= 36;
 
   return element(
