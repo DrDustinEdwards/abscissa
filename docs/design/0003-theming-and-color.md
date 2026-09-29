@@ -59,5 +59,6 @@ the gallery.
 Its first six series colors are the site's ratified chart ladder (cadet,
 purple, claret, sage, gold, rust), in the same order, with the site's light
 and dark values. Slots seven and eight, and the sequential ramp, come from the
-site's figure ramps; these are an **implementation choice** awaiting the
-author's ratification, since the site's own rule allows six series.
+site's figure ramps. They began as an implementation choice, since the
+site's own rule allows six series; the **author ratified them on
+2026-09-28**.
